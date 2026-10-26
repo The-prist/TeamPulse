@@ -1,8 +1,10 @@
 package com.teampulse.common.exception;
 
 import com.teampulse.common.api.ApiResponse;
+import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
@@ -28,7 +30,11 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @RestControllerAdvice
+@RequiredArgsConstructor
 public class GlobalExceptionHandler {
+
+    /** 按业务错误码计数：看板可以直接画「哪类错误在涨」 */
+    private final MeterRegistry meterRegistry;
 
     /** 业务异常：按错误码映射 HTTP 状态 */
     @ExceptionHandler(BizException.class)
@@ -36,6 +42,7 @@ public class GlobalExceptionHandler {
         ErrorCode ec = ex.getErrorCode();
         // 业务异常属于预期分支，用 warn 记录，避免污染 error 日志与告警
         log.warn("[biz] {} {} -> {}: {}", req.getMethod(), req.getRequestURI(), ec.getCode(), ex.getMessage());
+        meterRegistry.counter("teampulse_api_errors_total", "code", String.valueOf(ec.getCode())).increment();
         return ResponseEntity.status(ec.getHttpStatus())
                 .body(ApiResponse.fail(ec.getCode(), ex.getMessage()));
     }

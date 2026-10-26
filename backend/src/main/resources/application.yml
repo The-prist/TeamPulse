@@ -115,10 +115,14 @@ teampulse:
     admin-employee-no: ${TPP_ADMIN_EMPLOYEE_NO:E1000}
 
 management:
+  metrics:
+    tags:
+      # 全局标签：以后接多个服务时，Grafana 按 application 过滤
+      application: teampulse
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       show-details: when_authorized

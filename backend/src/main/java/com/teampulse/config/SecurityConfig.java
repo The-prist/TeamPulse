@@ -84,7 +84,10 @@ public class SecurityConfig {
                         // 物联网设备侧（走 HMAC 签名，不走 JWT）
                         .requestMatchers("/iot/**").permitAll()
                         // 健康检查与接口文档
-                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        // 抓取端（Prometheus）不带 JWT，因此指标端点放行；
+                // 生产环境请在 Nginx/安全组层面限制来源 IP，不要直接暴露到公网。
+                .requestMatchers("/actuator/health", "/actuator/info",
+                        "/actuator/prometheus", "/actuator/metrics/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex

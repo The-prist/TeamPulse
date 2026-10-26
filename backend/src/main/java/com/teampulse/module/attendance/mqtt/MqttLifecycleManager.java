@@ -1,6 +1,7 @@
 package com.teampulse.module.attendance.mqtt;
 
 import com.teampulse.module.attendance.config.MqttProperties;
+import com.teampulse.module.attendance.service.AttendanceMetrics;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.ApplicationArguments;
@@ -24,11 +25,14 @@ public class MqttLifecycleManager implements ApplicationRunner {
 
     private final MessageProducer inboundAdapter;
     private final MqttProperties properties;
+    private final AttendanceMetrics metrics;
 
     public MqttLifecycleManager(@Qualifier("mqttInboundAdapter") MessageProducer inboundAdapter,
-                                MqttProperties properties) {
+                                MqttProperties properties,
+                                AttendanceMetrics metrics) {
         this.inboundAdapter = inboundAdapter;
         this.properties = properties;
+        this.metrics = metrics;
     }
 
     @Override
@@ -51,11 +55,13 @@ public class MqttLifecycleManager implements ApplicationRunner {
                     return;
                 }
                 lifecycle.start();
+                metrics.mqttConnected();
                 log.info("MQTT 入站已启动 [{}] broker={}, topics=[{}, {}]",
                         phase, properties.getBrokerUrl(),
                         properties.getTopicCheckin(), properties.getTopicHeartbeat());
             }
         } catch (Exception ex) {
+            metrics.mqttConnectFailed("start-failed");
             log.warn("MQTT 入站启动失败 [{}] broker={}，原因：{}。Web 接口不受影响，30s 后自动重试",
                     phase, properties.getBrokerUrl(), ex.getMessage());
         }
