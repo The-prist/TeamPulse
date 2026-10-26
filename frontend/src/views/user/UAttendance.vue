@@ -90,12 +90,79 @@
         </el-table-column>
       </el-table>
     </el-card>
+
+    <!-- 补卡申请：员工不能直接改考勤，只能发起申请，由主管/HR 审批 -->
+    <el-card shadow="never" class="list-card makeup-card">
+      <template #header>
+        <div class="card-head">
+          <span>我的补卡申请</span>
+          <el-button type="primary" size="small" @click="openMakeup">申请补卡</el-button>
+        </div>
+      </template>
+      <!-- 加载失败与「没有数据」要能区分，否则用户会误以为真的没有数据 -->
+      <el-alert
+        v-if="loadError"
+        type="error"
+        :closable="false"
+        show-icon
+        class="load-error"
+        title="数据加载失败：网络或后端异常，当前显示的可能不是最新数据"
+      >
+        <el-button size="small" type="primary" link :loading="loading" @click="load">重新加载</el-button>
+      </el-alert>
+      <el-table :data="myRequests" size="small" v-loading="makeupLoading" empty-text="还没有提交过补卡申请">
+        <el-table-column label="补卡时间" width="160">
+          <template #default="{ row }">{{ formatDateTime(row.punchTime) }}</template>
+        </el-table-column>
+        <el-table-column prop="reason" label="原因" min-width="200" show-overflow-tooltip />
+        <el-table-column label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag size="small" :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="approverName" label="审批人" width="110" />
+        <el-table-column prop="approveRemark" label="审批备注" min-width="140" show-overflow-tooltip />
+        <el-table-column label="提交时间" width="160">
+          <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+        </el-table-column>
+      </el-table>
+    </el-card>
+
+    <el-dialog v-model="makeupVisible" title="申请补卡" width="460px">
+      <el-form label-width="90px">
+        <el-form-item label="补卡时间">
+          <el-date-picker
+            v-model="makeupForm.punchTime"
+            type="datetime"
+            value-format="YYYY-MM-DD HH:mm:ss"
+            placeholder="选择漏打卡的时间"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="打卡类型">
+          <el-radio-group v-model="makeupForm.punchType">
+            <el-radio-button label="AUTO">自动判定</el-radio-button>
+            <el-radio-button label="CHECK_IN">上班</el-radio-button>
+            <el-radio-button label="CHECK_OUT">下班</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="补卡原因">
+          <el-input v-model="makeupForm.reason" type="textarea" :rows="3" maxlength="200" show-word-limit
+                    placeholder="例如：设备故障未能打卡" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="makeupVisible = false">取消</el-button>
+        <el-button type="primary" :loading="makeupSubmitting" @click="submitMakeup">提交申请</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { attendanceApi } from '@/api'
+import { attendanceApi, makeupApi } from '@/api'
+import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import {
   formatDate,
@@ -107,6 +174,8 @@ import {
 
 const auth = useAuthStore()
 const loading = ref(false)
+// 加载失败与「没有数据」是两件事，用独立标志驱动告警与重试
+const loadError = ref(false)
 const rows = ref([])
 const range = ref([])
 const summary = reactive({ days: 0, normal: 0, late: 0, lateMinutes: 0 })
@@ -115,6 +184,7 @@ const hasEmployeeNo = computed(() => Boolean(auth.user?.employeeNo))
 
 async function load() {
   loading.value = true
+  loadError.value = false
   try {
     const params = {}
     if (Array.isArray(range.value) && range.value.length === 2) {
@@ -129,13 +199,77 @@ async function load() {
     summary.late = rows.value.filter((r) => Number(r.lateMinutes || 0) > 0).length
     summary.lateMinutes = rows.value.reduce((sum, r) => sum + Number(r.lateMinutes || 0), 0)
   } catch {
+    loadError.value = true
     rows.value = []
   } finally {
     loading.value = false
   }
 }
 
-onMounted(load)
+// ---------- 补卡申请 ----------
+const makeupVisible = ref(false)
+const makeupSubmitting = ref(false)
+const makeupLoading = ref(false)
+const myRequests = ref([])
+const makeupForm = reactive({ punchTime: '', punchType: 'AUTO', reason: '' })
+
+const STATUS_TEXT = { pending: '待审批', approved: '已通过', rejected: '已驳回', canceled: '已撤销' }
+const STATUS_TAG = { pending: 'warning', approved: 'success', rejected: 'danger', canceled: 'info' }
+function statusText(s) {
+  return STATUS_TEXT[s] || s || '—'
+}
+function statusTagType(s) {
+  return STATUS_TAG[s] || 'info'
+}
+
+function openMakeup() {
+  makeupForm.punchTime = ''
+  makeupForm.punchType = 'AUTO'
+  makeupForm.reason = ''
+  makeupVisible.value = true
+}
+
+async function submitMakeup() {
+  if (!makeupForm.punchTime) {
+    ElMessage.warning('请选择补卡时间')
+    return
+  }
+  if (!makeupForm.reason.trim()) {
+    ElMessage.warning('请填写补卡原因')
+    return
+  }
+  makeupSubmitting.value = true
+  try {
+    await makeupApi.submit({
+      punchTime: makeupForm.punchTime,
+      punchType: makeupForm.punchType,
+      reason: makeupForm.reason.trim(),
+    })
+    ElMessage.success('已提交，等待审批')
+    makeupVisible.value = false
+    await loadMyRequests()
+  } catch {
+    /* 错误提示由拦截器统一处理 */
+  } finally {
+    makeupSubmitting.value = false
+  }
+}
+
+async function loadMyRequests() {
+  makeupLoading.value = true
+  try {
+    const data = await makeupApi.mine({ page: 1, size: 20 })
+    myRequests.value = data?.records || []
+  } catch {
+    myRequests.value = []
+  } finally {
+    makeupLoading.value = false
+  }
+}
+onMounted(async () => {
+  await load()
+  await loadMyRequests()
+})
 </script>
 
 <style scoped>
@@ -205,5 +339,10 @@ onMounted(load)
 }
 .muted {
   color: #94a3b8;
+}
+
+.load-error {
+  margin-bottom: 10px;
+  border-radius: 8px;
 }
 </style>
