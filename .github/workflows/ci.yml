@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+# 同一分支的新提交取消上一次未完成的构建，避免排队
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: 后端（编译 + 单元测试）
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+
+      - name: 编译并运行单元测试
+        working-directory: backend
+        # 单元测试（AttendanceCalculatorTest）不依赖数据库，可直接跑；
+        # 集成测试（Testcontainers）需要 Docker，等补上后再拆成独立 job。
+        run: mvn -B -ntp clean test
+
+      - name: 上传测试报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-surefire-reports
+          path: backend/target/surefire-reports/**
+          if-no-files-found: ignore
+
+  frontend:
+    name: 前端（构建）
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.19.0'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: 安装依赖
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: 生产构建
+        working-directory: frontend
+        run: pnpm build
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          if-no-files-found: error
+
+  contract:
+    name: 契约检查（迁移脚本与配置）
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 校验 Flyway 迁移命名规范
+        run: |
+          set -e
+          cd backend/src/main/resources/db/migration
+          ls *.sql | sort > /tmp/actual.txt
+          echo "发现迁移："; cat /tmp/actual.txt
+          # 版本号必须连续且以 V 开头，例如 V1__xxx.sql
+          bad=$(grep -vE '^V[0-9]+__[a-z0-9_]+\.sql$' /tmp/actual.txt || true)
+          if [ -n "$bad" ]; then
+            echo "以下迁移文件命名不符合 V<数字>__<小写下划线>.sql："
+            echo "$bad"
+            exit 1
+          fi
+
+      - name: 准备 YAML 解析器
+        run: pip install --quiet pyyaml
+
+      - name: 校验 application.yml 可被解析
+        run: |
+          python3 - <<'PY'
+          import sys, yaml
+          with open('backend/src/main/resources/application.yml', encoding='utf-8') as f:
+              data = yaml.safe_load(f)
+          assert isinstance(data, dict) and 'spring' in data, 'application.yml 结构异常'
+          print('application.yml 解析通过，顶层键：', ', '.join(sorted(data.keys())))
+          PY
