@@ -142,7 +142,8 @@ docker compose logs backend | grep -A3 "演示打卡设备"
 > 清空数据卷后全新启动同样通过（Flyway V1~V7、21 表、admin 登录 22 权限点、关键接口全 200），
 > 过程与踩坑见 [`docs/部署验证记录.md`](docs/部署验证记录.md)。
 >
-> **尚未验证**：真实云服务器、域名/HTTPS、MQTT TLS、备份恢复演练。
+> **云上已跑通**：腾讯云轻量（Rocky Linux 10 / 4C4G）部署完成，公网接口断言 43/43 通过，详见 [`docs/部署验证记录.md`](docs/部署验证记录.md) §九。
+> **尚未验证**：域名 + HTTPS、MQTT TLS、备份恢复演练。
 
 ### 5.2 方式二：本地开发（看页面原型用这个）
 
@@ -377,7 +378,7 @@ teampulse/
 | 可观测性 | ✅ traceId + Prometheus 指标 + 日志落盘；**Prometheus + Grafana 已接入并实测** |
 | 性能 | ✅ 有压测数据（20 并发 p99 46ms，0 失败）；索引效果与瓶颈定位见性能报告 |
 | **本地容器化** | ✅ **已跑通**：镜像构建 + 5 容器 healthy + 全新库启动验证（见部署验证记录） |
-| **云端部署** | ❌ **未执行**：需要服务器；本机验证只证明同一套资产能起来 |
+| **云端部署** | ✅ **已完成**（2026-10-27）：腾讯云轻量 81.70.102.116，5 容器 healthy，公网 43/43 断言通过 |
 | 测试 | ⚠️ 仅单元测试；集成测试与压测未做 |
 | CI | 🚫 **按决策终止推进**：GitHub 账号账单锁定，不再尝试在 GitHub 上运行；本地等价验证（`scripts/run-tests.ps1`）已覆盖 |
 
@@ -452,3 +453,25 @@ docker exec -it tp-mysql mysql -uroot -p teampulse \
 - `.gitignore` 排除了 `.env`、`secrets.h`、`deploy/mosquitto/passwd`、`deploy/certs/`，
   仓库自带的 `.githooks/pre-commit` 会在提交时拦截硬编码密码与 64 位十六进制密钥；
 - 已自查：被跟踪文件中出现的两处 64 位十六进制均为占位符（`0123456789abcdef...`），不是真实密钥。
+
+---
+
+## 17. 线上环境
+
+| 项 | 值 |
+|---|---|
+| 地址 | **http://81.70.102.116/** |
+| 云厂商 / 区域 | 腾讯云轻量应用服务器，ap-beijing |
+| 系统 / 配置 | Rocky Linux 10.2，4 vCPU / 3.7 GB / 40 GB（含 2 GB swap） |
+| 管理员 | `admin`（密码在服务器 `/opt/TeamPulse/.env` 的 `TPP_ADMIN_PASSWORD`，部署时随机生成） |
+| 演示账号 | `zhangsan` / `lisi` / `wangwu` / `sunqi` / `zhaoliu`，密码统一 `123456` |
+| 应用目录 | `/opt/TeamPulse` |
+| 已开放端口 | 80（应用）。1883（设备上报）需在腾讯云控制台防火墙放行 |
+| 未开放 | 8080 / 3000 / 9090（仅回环或 Docker 内网，看监控请用 SSH 隧道） |
+
+日常发布：
+
+```bash
+ssh root@81.70.102.116
+cd /opt/TeamPulse && bash deploy/scripts/deploy-server.sh
+```
