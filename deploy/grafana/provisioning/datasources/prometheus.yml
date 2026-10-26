@@ -1,0 +1,13 @@
+# Grafana 数据源自动配置（容器启动即生效，不需要手工点 UI）
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus          # 固定 uid：看板 JSON 里引用它，避免依赖 Grafana 自动生成的随机 uid
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 15s

@@ -1,0 +1,25 @@
+# Prometheus 抓取配置
+#
+# 只抓后端一个目标：/actuator/prometheus 暴露的是 JVM + HTTP + 业务指标。
+# 后端的指标端点默认放行（Prometheus 抓取不带 JWT），生产环境通过 Docker 内网访问，
+# 不需要也不应该把 9090/3000 暴露到公网。
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  evaluation_interval: 15s
+  external_labels:
+    env: production
+    app: teampulse
+
+scrape_configs:
+  - job_name: teampulse-backend
+    metrics_path: /actuator/prometheus
+    static_configs:
+      # backend 是 compose 服务名，容器内 DNS 直接解析
+      - targets: ['backend:8080']
+        labels:
+          service: backend
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']

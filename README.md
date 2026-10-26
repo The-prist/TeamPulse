@@ -256,7 +256,20 @@ git config core.hooksPath .githooks
 | 设备连接 | `teampulse_mqtt_connected_total`、`teampulse_mqtt_connect_failed_total{reason}` | 同上 |
 | 健康检查 | `/actuator/health`（含 DB、Redis、磁盘） | `curl -s localhost:8080/actuator/health` |
 
-> 指标端点默认放行给抓取端；**生产请在 Nginx/安全组层面限制来源 IP**，不要直接暴露公网。
+> 指标端点默认放行给抓取端；生产请在 Nginx/安全组层面限制来源 IP，不要直接暴露公网。
+
+**监控栈已可一键启动**（`--profile monitoring`，本地实测通过）：
+
+| 组件 | 地址 | 说明 |
+|---|---|---|
+| Prometheus | `http://127.0.0.1:9090` | 抓 `backend:8080/actuator/prometheus`，15s 一次，保留 15 天 |
+| Grafana | `http://127.0.0.1:3000` | 预置 Prometheus 数据源 + 「TeamPulse 概览」看板（请求速率/错误率/P50·P95·P99/打卡成功失败/幂等命中/错误码分布/JVM 堆） |
+
+```bash
+docker compose --profile monitoring up -d prometheus grafana
+```
+
+两个端口默认只绑 `127.0.0.1`，外网请用 SSH 隧道，不要直接开放。
 
 排障三条线索可以互相对齐：
 
@@ -299,6 +312,17 @@ git config core.hooksPath .githooks
 | 压测 | QPS / P99 | ❌ 未做（性能数字均为设计目标，非实测） |
 
 明细报告：[`docs/测试报告.md`](docs/测试报告.md)（由 `scripts/run-tests.ps1` 运行后自动生成）。
+
+**压测**（零依赖脚本 + 5 万行合成数据）：
+
+```powershell
+docker exec -i tp-mysql mysql -uroot -p<密码> teampulse < tests/perf/seed-perf-data.sql
+node tests/perf/load.mjs --base http://127.0.0.1 --admin-password <密码> `
+  --path '/api/v1/attendance/records?page=1&size=20' --concurrency 20 --duration 15
+```
+
+实测（20 并发）：健康检查 p50 11ms、打卡记录 p50 31ms / p95 40ms / p99 46ms，0 失败；
+SQL 层最差 0.62ms —— **瓶颈不在数据库**，详见 [`docs/性能测试报告.md`](docs/性能测试报告.md)。
 用例说明与参数见 [`tests/README.md`](tests/README.md)。
 
 **CI**：`.github/workflows/ci.yml` 有 3 个 job（后端测试 / 前端构建 / 契约检查）。
@@ -332,6 +356,8 @@ teampulse/
 | [`docs/TeamPulse_全过程交接文档.md`](docs/TeamPulse_全过程交接文档.md) | 从老项目重构到 RBAC/审计/观测的完整过程、Bug 与踩坑记录、环境约定、验证基线、未完成事项 |
 | [`docs/角色与权限矩阵.md`](docs/角色与权限矩阵.md) | 6 角色的权限矩阵、数据范围规则、补卡审批流程、审计日志落地说明 |
 | [`docs/代码文件结构.docx`](docs/代码文件结构.docx) | 目录结构速查（125 Java / 42 Vue / 21 表 / 90 接口） |
+| [`docs/部署手册.md`](docs/部署手册.md) | 从装 Docker 到上线验收的逐步 Runbook：环境检查、.env 各项、首次启动验收、HTTPS、监控、备份恢复演练、回滚、故障排查表、上线安全检查清单 |
+| [`docs/性能测试报告.md`](docs/性能测试报告.md) | 20 并发下的 QPS 与分位延迟、索引前后对比、瓶颈定位（数据库只占 2%）、改进建议 |
 | [`docs/部署验证记录.md`](docs/部署验证记录.md) | 本机首次容器化的环境准备、7 个问题的根因与修复、验证证据、耗时、未验证项 |
 | `docs/diagrams/` | 用例图、ER 图（PlantUML 源文件 + PNG/SVG，v1 尚未包含 RBAC 新增表） |
 
@@ -344,7 +370,8 @@ teampulse/
 | 功能开发 | ✅ 8 大模块可运行，90 个接口实测通过 |
 | 权限体系 | ✅ 6 角色 / 22 权限点 / 数据范围 / 补卡审批，实测 403 与数据隔离生效 |
 | 审计留痕 | ✅ 20 个写操作，前端可查 |
-| 可观测性 | ✅ traceId + Prometheus 指标 + 日志落盘 |
+| 可观测性 | ✅ traceId + Prometheus 指标 + 日志落盘；**Prometheus + Grafana 已接入并实测** |
+| 性能 | ✅ 有压测数据（20 并发 p99 46ms，0 失败）；索引效果与瓶颈定位见性能报告 |
 | **本地容器化** | ✅ **已跑通**：镜像构建 + 5 容器 healthy + 全新库启动验证（见部署验证记录） |
 | **云端部署** | ❌ **未执行**：需要服务器；本机验证只证明同一套资产能起来 |
 | 测试 | ⚠️ 仅单元测试；集成测试与压测未做 |
