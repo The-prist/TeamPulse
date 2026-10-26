@@ -379,7 +379,7 @@ teampulse/
 | **本地容器化** | ✅ **已跑通**：镜像构建 + 5 容器 healthy + 全新库启动验证（见部署验证记录） |
 | **云端部署** | ❌ **未执行**：需要服务器；本机验证只证明同一套资产能起来 |
 | 测试 | ⚠️ 仅单元测试；集成测试与压测未做 |
-| CI | ⚠️ 配置就绪，因账号账单锁定未运行 |
+| CI | 🚫 **按决策终止推进**：GitHub 账号账单锁定，不再尝试在 GitHub 上运行；本地等价验证（`scripts/run-tests.ps1`）已覆盖 |
 
 **已知限制（摘要）**：一人一岗（`user.role` 单值）、DEPT 范围不含子部门、`team_role=leader` 等同 DEPT、
 无权限配置界面、缺勤只回补"昨天"、定时任务无分布式锁、考勤规则全局单行、
@@ -439,3 +439,16 @@ docker exec -it tp-mysql mysql -uroot -p teampulse \
 ## 15. License
 
 仅供学习与求职展示使用。
+
+---
+
+## 16. 关于仓库可见性与演示密码
+
+本仓库是 **public**（按决策不改为私有），因此：
+
+- 文档与种子脚本里出现的 `admin123` / `123456` / `Admin@TP2026` 等**均为演示值**，只用于本地或演示环境；
+- 生产部署时数据库密码、JWT 密钥、管理员密码、MQTT 密码、Grafana 密码**全部走 `.env` 环境变量**，
+  且 `application-prod.yml` 与 `docker-compose.yml` 做了 fail-closed（漏配直接启动失败，不会回退到默认值）；
+- `.gitignore` 排除了 `.env`、`secrets.h`、`deploy/mosquitto/passwd`、`deploy/certs/`，
+  仓库自带的 `.githooks/pre-commit` 会在提交时拦截硬编码密码与 64 位十六进制密钥；
+- 已自查：被跟踪文件中出现的两处 64 位十六进制均为占位符（`0123456789abcdef...`），不是真实密钥。

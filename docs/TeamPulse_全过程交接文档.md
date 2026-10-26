@@ -456,7 +456,7 @@ teampulse_attendance_idempotent_total{layer="message"} 1.0   # 重复报文被�
 | 项 | 状态 |
 |---|---|
 | CI 配置 | `.github/workflows/ci.yml`：3 个 job（后端 `mvn clean test` / 前端 pnpm 构建 / 契约检查） |
-| CI 运行 | ⚠️ 失败，但原因与代码无关：`The job was not started because your account is locked due to a billing issue.`（job 未分配 runner，`runner_id=0`、`steps=[]`）。需处理 GitHub 账号账单后重跑 |
+| CI 运行 | 🚫 **已终止推进**：`The job was not started because your account is locked due to a billing issue.` 原因为`The job was not started because your account is locked due to a billing issue.`（job 未分配 runner，`runner_id=0`、`steps=[]`）。需处理 GitHub 账号账单后重跑 |
 | 本地等价验证 | `mvn test` 11 用例全绿；`vite build` 成功；迁移命名检查通过 |
 | Git 远程 | `git@github.com:The-prist/TeamPulse.git`，分支 `main` |
 | 提交规范 | conventional commits，按功能分组：rbac / attendance(补卡) / audit / observability / frontend-fix / ci / docs |
@@ -502,3 +502,13 @@ teampulse_attendance_idempotent_total{layer="message"} 1.0   # 重复报文被�
 | 功能 | admin 部门为空 | bootstrap 建号时挂到根部门（总经办） |
 
 验证证据：清空数据卷后 `compose up` → 5 容器 healthy；Flyway V1~V7；admin 登录返回 `role=sysadmin`、22 权限点、`dept=总经办`、`scope=ALL`；`/user/list`、`/audit`、`/devices`、`/attendance/rule`、`/dashboard/admin` 全 200；后端以 `teampulse-backend-1` 连上 MQTT。
+
+### 16.7 决策记录（2026-10-27）
+
+| # | 决策 | 状态 | 原因与替代 |
+|---|---|---|---|
+| D1 | **不把仓库改为私有** | 终止 | 改可见性需要仓库管理员在网页操作；按用户决定不再推进。**替代措施**：文档统一标注演示密码为演示值，生产密码全部走 `.env` 且 fail-closed；`.gitignore` 与 pre-commit 钩子拦截密钥 |
+| D2 | **不在 GitHub Actions 上运行 CI** | 终止 | GitHub 账号因账单问题锁定，job 无法分配 runner（`runner_id=0`、`steps=[]`）。`ci.yml` 保留作配置留存；**替代措施**：本地 `scripts/run-tests.ps1` 跑三层检查（单测 / 前端构建 / 46 项接口断言），已在本地与容器版各验证一次全绿 |
+
+> 这两条原先记为「未完成」，现改为「决策不做」。后续若要恢复，只需：处理 GitHub 账单 → 手动触发 workflow；
+> 以及网页 Settings → Danger Zone → Change visibility。
