@@ -206,7 +206,81 @@ npm start -- --broker mqtt://<服务器IP>:1883 --sn TP-ESP32-DEMO --secret <密
 
 ---
 
-## 7. 项目结构
+## 7. 安全与密钥管理
+
+这个仓库是公开的，所以代码里**不含任何真实凭据**。真实值只存在于三个不会进入 Git 的地方：
+
+| 位置 | 放什么 | 是否入库 |
+|---|---|---|
+| 环境变量（`.env` 或 `setx`） | 数据库 / Redis / MQTT 密码、JWT 密钥 | `.env` 已被忽略 |
+| `device/esp32/attendance_node/secrets.h` | WiFi 账号、设备 `DEVICE_SECRET` | 已忽略，模板见 `secrets.h.example` |
+| `device/simulator/config.json` | 模拟器用的设备密钥 | 已忽略，模板见 `config.example.json` |
+
+配置文件里的敏感项一律写成 `${VAR:默认值}` 形式，例如 `application.yml`：
+
+```yaml
+spring:
+  datasource:
+    password: ${DB_PASSWORD:root}
+```
+
+固件则是「有则覆盖、无则占位」，保证别人 clone 下来仍能编译：
+
+```cpp
+#if __has_include("secrets.h")
+#include "secrets.h"          // 本机真实值
+#endif
+#ifndef DEVICE_SECRET
+#define DEVICE_SECRET "…"     // 占位值，验签必然失败
+#endif
+```
+
+### 7.1 设备密钥怎么流转
+
+1. 后端首次启动，`BootstrapDataInitializer` 用 `SecureRandom` 生成 32 字节随机数，
+   转成 64 位十六进制写入 `iot_device.secret`，并打印到启动日志
+2. 固件把同一份密钥填进 `secrets.h` 的 `DEVICE_SECRET`
+3. 每次打卡，固件对 `deviceSn|employeeNo|punchTime|nonce` 做 **HMAC-SHA256**，
+   签名随报文一起发出
+4. 服务端用库里同一份密钥重算并比对，不一致返回 `60003`
+5. `nonce` 进 Redis 去重窗口（默认 10 分钟），重复即拒绝，**防止报文重放**
+
+因此密钥泄露等于别人可以伪造打卡数据——这也是它必须只留在本机的原因。
+
+### 7.2 生产环境 fail-closed
+
+宁可启动失败，也不要带着默认密钥上线：
+
+| 位置 | 行为 |
+|---|---|
+| `application-prod.yml`：`teampulse.jwt.secret: ${TPP_JWT_SECRET:}` | 漏配时密钥不足 32 字节，`JwtTokenProvider` 直接抛异常拒绝启动，**不会静默回退**到 `application.yml` 里的开发密钥（否则拿到仓库的人就能伪造管理员 token） |
+| `docker-compose.yml`：`TPP_ADMIN_PASSWORD: "${TPP_ADMIN_PASSWORD:?...}"` | 漏配时 compose 直接报错，**不会**用 `admin123` 建出弱口令管理员 |
+
+### 7.3 提交前的自动检查
+
+仓库自带 `.githooks/pre-commit`，提交时拦截四类问题：
+
+| 检查项 | 会被拦的内容 |
+|---|---|
+| 敏感文件本身 | `.env`、`secrets.h`、`device/simulator/config.json`、`deploy/certs/` |
+| 硬编码密码 | `DB_PASSWORD=realpass`（`${DB_PASSWORD:...}` 写法放行） |
+| 设备密钥 | 任何 64 位十六进制串（`secrets.h.example` 里的占位值放行） |
+| 私钥内容 | `-----BEGIN … PRIVATE KEY-----` |
+
+**克隆仓库后需要启用一次**（钩子文件在仓库里，但启用开关是本机配置）：
+
+```bash
+git config core.hooksPath .githooks
+```
+
+确认是误报时可 `git commit --no-verify` 跳过。
+
+> 文档里的环境相关路径统一写成 `<MySQL安装目录>` 这类占位符；
+> 自己机器的真实路径记在 `docs/本机环境.local.md`（匹配 `*.local.md`，已被忽略）。
+
+---
+
+## 8. 项目结构
 
 ```
 teampulse/
@@ -221,7 +295,7 @@ teampulse/
 
 ---
 
-## 8. 常用运维命令
+## 9. 常用运维命令
 
 ```bash
 # 发布（备份 → 构建 → 上线 → 健康检查）
@@ -246,7 +320,7 @@ docker exec -it tp-mysql mysql -uroot -p teampulse \
 
 ---
 
-## 9. 与原始团队项目的关系
+## 10. 与原始团队项目的关系
 
 本项目由一支团队的老项目重构而来，主要变更：
 
@@ -261,7 +335,7 @@ docker exec -it tp-mysql mysql -uroot -p teampulse \
 
 ---
 
-## 10. 已知限制
+## 11. 已知限制
 
 - 定时任务未做分布式锁，多实例部署时需引入 Redis 锁或 ShedLock
 - 考勤规则为全局单条，未支持按部门差异化
@@ -270,6 +344,6 @@ docker exec -it tp-mysql mysql -uroot -p teampulse \
 
 ---
 
-## 11. License
+## 12. License
 
 仅供学习与求职展示使用。
