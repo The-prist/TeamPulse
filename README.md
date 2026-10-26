@@ -280,13 +280,29 @@ git config core.hooksPath .githooks
 
 ## 10. 测试与 CI
 
-| 项 | 状态 |
-|---|---|
-| 单元测试 | 1 个测试类 / 11 个用例（考勤计算：迟到分钟、早退分钟、签到签退判定）· `mvn test` 全绿 |
-| 集成测试 | ❌ 未实现（需要 Testcontainers + Docker） |
-| 压测 | ❌ 未做（性能数字均为设计目标，非实测） |
-| CI | `.github/workflows/ci.yml`：3 个 job（后端测试 / 前端构建 / 契约检查） |
-| CI 运行状态 | ⚠️ **当前失败**：`The job was not started because your account is locked due to a billing issue.`——GitHub 账号账单问题，与代码无关；修好账单后手动触发即可 |
+**一条命令跑完三层检查**：
+
+```powershell
+.\scripts\run-tests.ps1              # 后端单测 + 前端构建 + 46 项接口断言
+.\scripts\run-tests.ps1 -ReadOnly    # 跳过写数据用例（打卡写库、审批）
+```
+
+| 层 | 内容 | 结果 |
+|---|---|---|
+| 后端单元测试 | JUnit 5，考勤计算（迟到/早退/签到签退） | ✅ 11 / 11 |
+| 前端构建校验 | `vite build`，能发现模板/语法/引用错误 | ✅ 2362 模块 |
+| 接口端到端 | 认证、6 角色权限矩阵、数据范围、打卡验签/漂移/幂等、补卡审批、审计留痕、分页 | ✅ **46 / 46** |
+| 集成测试 | Testcontainers（需 Docker） | ❌ 未实现 |
+| 压测 | QPS / P99 | ❌ 未做（性能数字均为设计目标，非实测） |
+
+明细报告：[`docs/测试报告.md`](docs/测试报告.md)（由 `scripts/run-tests.ps1` 运行后自动生成）。
+用例说明与参数见 [`tests/README.md`](tests/README.md)。
+
+**CI**：`.github/workflows/ci.yml` 有 3 个 job（后端测试 / 前端构建 / 契约检查）。
+当前运行状态为失败，原因与代码无关：
+
+> `The job was not started because your account is locked due to a billing issue.`
+> —— GitHub 账号账单问题（job 未分配 runner），处理账单后手动触发即可。
 
 ---
 
