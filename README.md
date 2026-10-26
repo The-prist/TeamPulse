@@ -308,10 +308,14 @@ docker compose --profile monitoring up -d prometheus grafana
 | 后端单元测试 | JUnit 5，考勤计算（迟到/早退/签到签退） | ✅ 11 / 11 |
 | 前端构建校验 | `vite build`，能发现模板/语法/引用错误 | ✅ 2362 模块 |
 | 接口端到端 | 认证、6 角色权限矩阵、数据范围、打卡验签/漂移/幂等、补卡审批、审计留痕、分页 | ✅ **46 / 46** |
-| 集成测试 | Testcontainers（需 Docker） | ❌ 未实现 |
+| 集成测试 | Testcontainers（真起 MySQL 容器）：迁移跑通、bootstrap 管理员角色、未认证 401、打卡验签+幂等、数据范围隔离 | ⚠️ 已实现；**本机跳过**（见下） |
 | 压测 | QPS / P99 | ❌ 未做（性能数字均为设计目标，非实测） |
 
 明细报告：[`docs/测试报告.md`](docs/测试报告.md)（由 `scripts/run-tests.ps1` 运行后自动生成）。
+
+> **集成测试现状**：`TeamPulseIntegrationTest`（5 个用例）用 `@Testcontainers(disabledWithoutDocker = true)`，
+> 本机 Docker Desktop 引擎 API 为 1.56，而 docker-java 握手不兼容（`Could not find a valid Docker environment`），
+> 因此本地 `mvn test` 显示 **11 通过 + 5 跳过**（BUILD SUCCESS）；在标准 Docker 环境（CI runner / Linux 服务器）会真实执行。
 
 **压测**（零依赖脚本 + 5 万行合成数据）：
 
