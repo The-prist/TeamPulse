@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
+import com.teampulse.module.audit.annotation.Audited;
 
 /**
  * 物联网设备管理接口（仅管理员）。
@@ -31,7 +32,7 @@ import java.util.Map;
 @Tag(name = "打卡设备", description = "设备注册、密钥轮换、在线状态")
 @RestController
 @RequestMapping("/api/v1/devices")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('device:view')")
 @RequiredArgsConstructor
 public class DeviceController {
 
@@ -55,6 +56,8 @@ public class DeviceController {
 
     @Operation(summary = "注册设备", description = "响应中的 secret 仅此一次返回，请立即写入设备")
     @PostMapping
+    @PreAuthorize("hasAuthority('device:manage')")
+    @Audited(module = "device", action = "device.create", detail = "注册打卡设备")
     public ApiResponse<Map<String, Object>> create(@Valid @RequestBody AttendanceDtos.DeviceCreateRequest request) {
         DeviceService.DeviceWithSecret created = deviceService.create(request);
         return ApiResponse.ok(Map.of(
@@ -64,6 +67,7 @@ public class DeviceController {
 
     @Operation(summary = "更新设备信息")
     @PutMapping("/{id}")
+    @Audited(module = "device", action = "device.update", detail = "修改设备信息")
     public ApiResponse<Void> update(@PathVariable Long id,
                                     @Valid @RequestBody AttendanceDtos.DeviceUpdateRequest request) {
         deviceService.update(id, request);
@@ -72,12 +76,16 @@ public class DeviceController {
 
     @Operation(summary = "轮换设备密钥", description = "旧密钥立即失效，需要同步更新设备端")
     @PutMapping("/{id}/secret")
+    @PreAuthorize("hasAuthority('device:manage')")
+    @Audited(module = "device", action = "device.secret.rotate", detail = "轮换设备密钥")
     public ApiResponse<Map<String, String>> rotateSecret(@PathVariable Long id) {
         return ApiResponse.ok(Map.of("secret", deviceService.rotateSecret(id)));
     }
 
     @Operation(summary = "删除设备")
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('device:manage')")
+    @Audited(module = "device", action = "device.delete", detail = "删除设备")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         deviceService.delete(id);
         return ApiResponse.ok();

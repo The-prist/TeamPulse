@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import com.teampulse.module.audit.annotation.Audited;
 
 /**
  * 团队接口。
@@ -47,7 +48,7 @@ public class TeamController {
 
     @Operation(summary = "分页查询团队（管理员）")
     @GetMapping("/list")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('team:view')")
     public ApiResponse<PageResult<TeamDtos.TeamVO>> list(@RequestParam(required = false) String keyword,
                                                         @RequestParam(defaultValue = "1") long page,
                                                         @RequestParam(defaultValue = "10") long size) {
@@ -75,6 +76,7 @@ public class TeamController {
     @Operation(summary = "创建团队", description = "创建人自动成为该团队的 leader")
     // 同时映射 "" 与 "/"：Spring 6 默认关闭尾斜杠匹配，前端带不带斜杠都能打到同一个方法
     @PostMapping({"", "/"})
+    @Audited(module = "team", action = "team.create", detail = "创建团队")
     public ApiResponse<Map<String, Object>> create(@Valid @RequestBody TeamDtos.CreateRequest request) {
         Team team = teamService.create(request, SecurityUtils.currentUserId());
         return ApiResponse.ok(Map.of("teamId", team.getTeamId()));
@@ -82,6 +84,7 @@ public class TeamController {
 
     @Operation(summary = "更新团队资料（负责人或管理员）")
     @PutMapping("/{teamId}")
+    @Audited(module = "team", action = "team.update", detail = "修改团队")
     public ApiResponse<Void> update(@PathVariable Long teamId,
                                     @Valid @RequestBody TeamDtos.UpdateRequest request) {
         teamService.update(teamId, request);
@@ -90,6 +93,7 @@ public class TeamController {
 
     @Operation(summary = "删除团队（创建人或管理员）", description = "团队逻辑删除，成员关系同步物理清理")
     @DeleteMapping("/{teamId}")
+    @Audited(module = "team", action = "team.delete", detail = "删除团队")
     public ApiResponse<Void> delete(@PathVariable Long teamId) {
         teamService.delete(teamId);
         return ApiResponse.ok();
@@ -97,6 +101,7 @@ public class TeamController {
 
     @Operation(summary = "添加团队成员（负责人或管理员）")
     @PostMapping("/{teamId}/members")
+    @Audited(module = "team", action = "team.member.add", detail = "团队加人")
     public ApiResponse<Void> addMember(@PathVariable Long teamId,
                                        @Valid @RequestBody TeamDtos.MemberAddRequest request) {
         teamService.addMember(teamId, SecurityUtils.currentUserId(), request);
@@ -114,6 +119,7 @@ public class TeamController {
 
     @Operation(summary = "移除团队成员（负责人或管理员）")
     @DeleteMapping("/{teamId}/members/{userId}")
+    @Audited(module = "team", action = "team.member.remove", detail = "团队移人")
     public ApiResponse<Void> removeMember(@PathVariable Long teamId, @PathVariable Long userId) {
         teamService.removeMember(teamId, SecurityUtils.currentUserId(), userId);
         return ApiResponse.ok();

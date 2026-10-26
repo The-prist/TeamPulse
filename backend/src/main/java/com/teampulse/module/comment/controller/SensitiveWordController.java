@@ -25,11 +25,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.Map;
+import com.teampulse.module.audit.annotation.Audited;
 
 /**
  * 敏感词库管理接口。
  *
- * <p>整个类加 {@code @PreAuthorize("hasRole('ADMIN')")}：词库决定全站评论展示什么，
+ * <p>整个类加 {@code @PreAuthorize("hasAuthority('sensitive:manage')")}：词库决定全站评论展示什么，
  * 属于管理端能力，普通成员连读取词库都不应该（否则等于把一份「可绕过清单」发给所有人）。
  * 唯一的例外是 {@code /check}，但它也只在这个类里，供管理端编辑评论时预检。
  *
@@ -40,7 +41,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/sensitive-word")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('sensitive:manage')")
 public class SensitiveWordController {
 
     private final SensitiveWordService sensitiveWordService;
@@ -55,6 +56,7 @@ public class SensitiveWordController {
 
     @Operation(summary = "新增敏感词（管理员）", description = "重复录入返回 409；新增后缓存立即失效")
     @PostMapping
+    @Audited(module = "sensitive", action = "sensitive.create", detail = "新增敏感词")
     public ApiResponse<Map<String, Object>> add(@Valid @RequestBody WordCreateRequest request) {
         SensitiveWord word = sensitiveWordService.add(request.getWord(), request.getReplacement());
         return ApiResponse.ok(Map.of("wordId", word.getWordId()));
@@ -62,6 +64,7 @@ public class SensitiveWordController {
 
     @Operation(summary = "更新敏感词（管理员）", description = "word/replacement/status 传 null 表示不修改")
     @PutMapping("/{wordId}")
+    @Audited(module = "sensitive", action = "sensitive.update", detail = "修改敏感词")
     public ApiResponse<Void> update(@PathVariable Long wordId,
                                     @Valid @RequestBody WordUpdateRequest request) {
         sensitiveWordService.update(wordId, request.getWord(), request.getReplacement(), request.getStatus());
@@ -70,6 +73,7 @@ public class SensitiveWordController {
 
     @Operation(summary = "删除敏感词（管理员）", description = "物理删除词条，历史评论的替换结果不回溯")
     @DeleteMapping("/{wordId}")
+    @Audited(module = "sensitive", action = "sensitive.delete", detail = "删除敏感词")
     public ApiResponse<Void> delete(@PathVariable Long wordId) {
         sensitiveWordService.delete(wordId);
         return ApiResponse.ok();

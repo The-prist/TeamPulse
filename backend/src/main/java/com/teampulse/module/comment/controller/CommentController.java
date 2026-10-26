@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
 import java.util.List;
+import com.teampulse.module.audit.annotation.Audited;
 
 /**
  * 评论接口。
@@ -59,7 +60,7 @@ public class CommentController {
     @Operation(summary = "管理端全量评论检索",
             description = "可不限关联对象，按日期区间 / 时间段 / 评论人 / 关键词筛选；默认时间正序")
     @GetMapping("/admin/page")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('comment:view')")
     public ApiResponse<PageResult<CommentDtos.CommentVO>> adminPage(
             @RequestParam(required = false) String relatedType,
             @RequestParam(required = false) Long relatedId,
@@ -93,6 +94,7 @@ public class CommentController {
 
     @Operation(summary = "删除评论", description = "仅作者本人或管理员，逻辑删除并级联删除其子回复")
     @DeleteMapping("/{id}")
+    @Audited(module = "comment", action = "comment.delete", detail = "删除评论")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         commentService.delete(id, SecurityUtils.currentUserId());
         return ApiResponse.ok();

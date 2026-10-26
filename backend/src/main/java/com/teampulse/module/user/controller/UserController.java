@@ -23,13 +23,14 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.Map;
+import com.teampulse.module.audit.annotation.Audited;
 
 /**
  * 用户管理接口。
  *
  * <p>鉴权分三档：
  * <ul>
- *   <li>管理端 CRUD —— {@code @PreAuthorize("hasRole('ADMIN')")}</li>
+ *   <li>管理端 CRUD —— {@code @PreAuthorize("hasAuthority('user:manage')")}</li>
  *   <li>下拉选项 —— 任意登录用户（选人、指派卡片都要用）</li>
  *   <li>自助操作 —— 只能操作自己，用户 ID 取自 JWT 而非请求参数</li>
  * </ul>
@@ -44,7 +45,7 @@ public class UserController {
 
     @Operation(summary = "分页查询用户（管理员）")
     @GetMapping("/list")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('user:view')")
     public ApiResponse<PageResult<User>> list(@RequestParam(required = false) String keyword,
                                               @RequestParam(defaultValue = "1") long page,
                                               @RequestParam(defaultValue = "10") long size) {
@@ -79,14 +80,15 @@ public class UserController {
 
     @Operation(summary = "用户详情（管理员）")
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('user:view')")
     public ApiResponse<User> detail(@PathVariable Long id) {
         return ApiResponse.ok(userService.getById(id));
     }
 
     @Operation(summary = "创建用户（管理员）")
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('user:manage')")
+    @Audited(module = "user", action = "user.create", detail = "新增用户")
     public ApiResponse<Map<String, Object>> create(@Valid @RequestBody UserDtos.CreateRequest request) {
         User user = userService.create(request);
         return ApiResponse.ok(Map.of("userId", user.getUserId()));
@@ -94,7 +96,8 @@ public class UserController {
 
     @Operation(summary = "更新用户（管理员）")
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('user:manage')")
+    @Audited(module = "user", action = "user.update", detail = "修改用户资料/角色/部门")
     public ApiResponse<Void> update(@PathVariable Long id, @Valid @RequestBody UserDtos.UpdateRequest request) {
         userService.update(id, request);
         return ApiResponse.ok();
@@ -102,7 +105,8 @@ public class UserController {
 
     @Operation(summary = "重置密码（管理员）", description = "无需旧密码，用于员工忘记密码场景")
     @PutMapping("/{id}/password")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('user:manage')")
+    @Audited(module = "user", action = "user.password.reset", detail = "管理员重置用户密码")
     public ApiResponse<Void> resetPassword(@PathVariable Long id,
                                            @Valid @RequestBody UserDtos.PasswordResetRequest request) {
         userService.resetPassword(id, request.getNewPassword());
@@ -111,7 +115,8 @@ public class UserController {
 
     @Operation(summary = "删除用户（管理员，逻辑删除）")
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('user:manage')")
+    @Audited(module = "user", action = "user.delete", detail = "删除用户（逻辑删除）")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         userService.delete(id);
         return ApiResponse.ok();

@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
 import java.util.List;
+import com.teampulse.module.audit.annotation.Audited;
 
 /**
  * 考勤查询与补卡接口。
@@ -54,7 +55,7 @@ public class AttendanceController {
     @Operation(summary = "员工考勤详情（管理员）",
             description = "一次返回该员工的汇总统计、按天明细与原始打卡流水，供点人名后的抽屉展示")
     @GetMapping("/employee/{userId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('attendance:view')")
     public ApiResponse<AttendanceDtos.EmployeeAttendance> employeeDetail(
             @PathVariable Long userId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
@@ -86,7 +87,7 @@ public class AttendanceController {
     @Operation(summary = "考勤日历（管理员）",
             description = "返回日期区间内「每人每天」的考勤结果，供日历视图按天展开名单")
     @GetMapping("/calendar")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('attendance:view')")
     public ApiResponse<List<AttendanceDtos.CalendarDay>> calendar(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
@@ -103,7 +104,8 @@ public class AttendanceController {
 
     @Operation(summary = "手工补卡（管理员）")
     @PostMapping("/manual")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('attendance:manage')")
+    @Audited(module = "attendance", action = "attendance.manual", detail = "手工补卡")
     public ApiResponse<AttendanceRecord> manual(@Valid @RequestBody AttendanceDtos.ManualPunchRequest request) {
         return ApiResponse.ok(attendanceService.manualPunch(request));
     }
@@ -116,7 +118,8 @@ public class AttendanceController {
 
     @Operation(summary = "更新考勤规则（管理员）")
     @PutMapping("/rule")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('attendance:rule')")
+    @Audited(module = "attendance", action = "attendance.rule.update", detail = "修改考勤规则")
     public ApiResponse<AttendanceRule> updateRule(@Valid @RequestBody AttendanceDtos.RuleUpdateRequest request) {
         return ApiResponse.ok(ruleService.update(request));
     }

@@ -125,3 +125,29 @@ export const sensitiveWordApi = {
   /** 文本命中检测：返回 { hit, words }，不落库 */
   check: (content) => http.get('/sensitive-word/check', { params: { content } }),
 }
+
+/** 部门下拉 */
+export const departmentApi = {
+  options: () => http.get('/department/options'),
+}
+
+/** 角色下拉（含数据范围） */
+export const roleApi = {
+  options: () => http.get('/role/options'),
+}
+
+/** 补卡申请与审批 */
+export const makeupApi = {
+  submit: (payload) => http.post('/makeup', payload),
+  mine: (params) => http.get('/makeup/mine', { params }),
+  pending: (params) => http.get('/makeup/pending', { params }),
+  reviewed: (params) => http.get('/makeup/reviewed', { params }),
+  review: (requestId, payload) => http.post(`/makeup/${requestId}/review`, payload),
+}
+
+/** 审计日志（只读） */
+export const auditApi = {
+  page: (params) => http.get('/audit', { params }),
+  detail: (id) => http.get(`/audit/${id}`),
+  options: () => http.get('/audit/options'),
+}
