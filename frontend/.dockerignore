@@ -1,0 +1,18 @@
+# 构建上下文排除项
+# 缺这个文件时，node_modules（约 190MB）会被塞进构建上下文，
+# 而且 COPY . . 会用宿主（Windows）版本的依赖覆盖容器内 pnpm 装好的 Linux 依赖，
+# 导致 esbuild / rollup 的原生模块平台不匹配，构建直接失败。
+node_modules/
+dist/
+.vite/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# 本地环境与密钥不入镜像
+.env
+.env.*
+!.env.example
+
+Dockerfile
+.dockerignore

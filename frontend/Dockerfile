@@ -1,14 +1,19 @@
 # =====================================================================
 # 前端镜像：Node 构建 → Nginx 托管静态资源 + 反向代理后端
+#
+# 用 pnpm 安装依赖：仓库里只有 pnpm-lock.yaml，
+# 之前用 npm ci/npm install 会绕过锁文件，导致不同机器可能装到不同版本（构建不可复现）。
 # =====================================================================
 FROM node:20-alpine AS builder
 
 WORKDIR /build
 
-# 先拷依赖清单，利用分层缓存
-COPY package*.json ./
-# 有 lock 文件用 npm ci（可复现），没有则退回 npm install
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+# 用 corepack 固定 pnpm 主版本，与 CI（pnpm/action-setup@v4 version: 9）保持一致
+RUN corepack enable && corepack prepare pnpm@9 --activate
+
+# 先拷锁文件与清单，利用分层缓存；--frozen-lockfile 保证与锁文件完全一致
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
 COPY . .
 
@@ -16,7 +21,7 @@ COPY . .
 ARG VITE_API_BASE=/api/v1
 ENV VITE_API_BASE=${VITE_API_BASE}
 
-RUN npm run build
+RUN pnpm build
 
 # =====================================================================
 FROM nginx:1.27-alpine

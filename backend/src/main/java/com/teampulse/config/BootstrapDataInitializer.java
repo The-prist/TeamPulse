@@ -3,6 +3,8 @@ package com.teampulse.config;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.teampulse.module.attendance.entity.IotDevice;
 import com.teampulse.module.attendance.mapper.IotDeviceMapper;
+import com.teampulse.module.rbac.entity.Department;
+import com.teampulse.module.rbac.mapper.DepartmentMapper;
 import com.teampulse.module.user.entity.User;
 import com.teampulse.module.user.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +39,7 @@ public class BootstrapDataInitializer implements ApplicationRunner {
     private final BootstrapProperties properties;
     private final UserMapper userMapper;
     private final IotDeviceMapper deviceMapper;
+    private final DepartmentMapper departmentMapper;
     private final PasswordEncoder passwordEncoder;
     private final SecureRandom secureRandom = new SecureRandom();
 
@@ -60,8 +63,11 @@ public class BootstrapDataInitializer implements ApplicationRunner {
         admin.setEmail(properties.getAdminUsername() + "@teampulse.local");
         admin.setPhone("13800000000");
         admin.setEmployeeNo(properties.getAdminEmployeeNo());
-        admin.setRole("admin");
+        // 必须是 sysadmin：RBAC 只认 role 表里的角色 key，
+        // 写旧的 "admin" 会导致查不到角色、权限为 0，管理员登录后几乎全部接口 403（全新库部署时踩过）。
+        admin.setRole("sysadmin");
         admin.setStatus("active");
+        admin.setDepartmentId(rootDepartmentId());
         userMapper.insert(admin);
 
         log.warn("""
@@ -73,6 +79,17 @@ public class BootstrapDataInitializer implements ApplicationRunner {
                    工号  : {}（打卡机上报此工号）
                 ============================================================
                 """, admin.getUsername(), properties.getAdminPassword(), admin.getEmployeeNo());
+    }
+
+    /**
+     * 根部门（总经办）的 id；部门表还没种子时返回 null，不让初始化失败。
+     * 管理员挂在根部门下，用户列表与数据范围展示才不会出现空部门。
+     */
+    private Long rootDepartmentId() {
+        Department root = departmentMapper.selectOne(Wrappers.<Department>lambdaQuery()
+                .eq(Department::getDeptCode, "ROOT")
+                .last("LIMIT 1"));
+        return root == null ? null : root.getDepartmentId();
     }
 
     private void initDemoDevice() {

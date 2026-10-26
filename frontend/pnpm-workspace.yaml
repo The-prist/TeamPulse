@@ -1,5 +1,0 @@
-# pnpm 10 起默认不执行依赖的安装脚本；esbuild 需要放行才能装好平台二进制。
-# （此前这里是 "allowBuilds: esbuild: set this to true or false" —— 既不是合法 pnpm 字段，
-#   值也是提示文案，pnpm 会直接报未知配置。）
-onlyBuiltDependencies:
-  - esbuild
