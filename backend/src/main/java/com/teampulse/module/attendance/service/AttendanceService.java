@@ -6,6 +6,8 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.teampulse.common.api.PageResult;
+import com.teampulse.module.rbac.service.DataScopeService;
+import com.teampulse.module.rbac.service.DataScope;
 import com.teampulse.common.exception.BizException;
 import com.teampulse.common.exception.ErrorCode;
 import com.teampulse.module.attendance.config.AttendanceProperties;
@@ -64,6 +66,7 @@ public class AttendanceService {
     private static final String SOURCE_MANUAL = "MANUAL";
 
     private final AttendanceRecordMapper recordMapper;
+    private final DataScopeService dataScopeService;
     private final AttendanceDailyMapper dailyMapper;
     private final IotDeviceMapper deviceMapper;
     private final UserMapper userMapper;
@@ -72,6 +75,7 @@ public class AttendanceService {
     private final DeviceService deviceService;
     private final DeviceSignatureVerifier signatureVerifier;
     private final NonceDedupService nonceDedupService;
+    private final AttendanceMetrics attendanceMetrics;
     private final AckPublisher ackPublisher;
     private final AttendanceProperties properties;
     private final ObjectMapper objectMapper;
@@ -137,6 +141,7 @@ public class AttendanceService {
                 .eq(AttendanceRecord::getMessageId, messageId)
                 .last("LIMIT 1"));
         if (existing != null) {
+            attendanceMetrics.idempotentHit("message");
             log.info("重复报文，直接返回既有结果: messageId={}", messageId);
             return buildAck(existing, 0, "duplicate message, already processed");
         }
@@ -146,6 +151,7 @@ public class AttendanceService {
                 .eq(AttendanceRecord::getEmployeeNo, employeeNo)
                 .eq(AttendanceRecord::getPunchTime, punchTime));
         if (sameSecond) {
+            attendanceMetrics.idempotentHit("employee_time");
             throw BizException.of(ErrorCode.ATTENDANCE_DUPLICATE, "该员工在该时刻已有打卡记录");
         }
 
@@ -317,6 +323,15 @@ public class AttendanceService {
 
         LambdaQueryWrapper<AttendanceRecord> wrapper = Wrappers.<AttendanceRecord>lambdaQuery()
                 .orderByDesc(AttendanceRecord::getPunchTime);
+        // 数据范围：员工只看自己的打卡、经理看本部门、管理员不限制
+        DataScope scope = dataScopeService.current();
+        if (!scope.isUnrestricted()) {
+            if (scope.userIds().isEmpty()) {
+                wrapper.apply("1 = 0");
+            } else {
+                wrapper.in(AttendanceRecord::getUserId, scope.userIds());
+            }
+        }
         if (StringUtils.hasText(query.getEmployeeNo())) {
             wrapper.like(AttendanceRecord::getEmployeeNo, query.getEmployeeNo().trim());
         }

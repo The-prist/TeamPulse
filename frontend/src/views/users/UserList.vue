@@ -16,19 +16,33 @@
           </div>
         </div>
       </template>
+  <!-- 加载失败与「没有数据」要能区分，否则用户会误以为真的没有数据 -->
+  <el-alert
+    v-if="loadError"
+    type="error"
+    :closable="false"
+    show-icon
+    class="load-error"
+    title="数据加载失败：网络或后端异常，当前显示的可能不是最新数据"
+  >
+    <el-button size="small" type="primary" link :loading="loading" @click="load">重新加载</el-button>
+  </el-alert>
   <el-table :data="users" size="small" style="width: 100%" :row-key="row => row.userId" v-loading="loading">
         <template #empty>
           <el-empty description="暂无数据" />
         </template>
-        <el-table-column prop="username" label="编号" width="120" />
-        <el-table-column prop="nickname" label="用户名" />
-        <el-table-column prop="email" label="邮箱" />
-        <el-table-column prop="phone" label="电话" />
+        <el-table-column prop="username" label="账号" width="120" />
+        <el-table-column prop="nickname" label="姓名" width="110" />
+        <el-table-column label="部门" width="120">
+          <template #default="{ row }">{{ deptName(row.departmentId) }}</template>
+        </el-table-column>
         <el-table-column label="角色" width="120">
           <template #default="{ row }">
-            <el-tag :type="row.role==='admin' ? 'danger' : 'info'">{{ userRoleText(row.role) }}</el-tag>
+            <el-tag :type="roleTagType(row.role)" effect="plain">{{ roleName(row.role) }}</el-tag>
           </template>
         </el-table-column>
+        <el-table-column prop="email" label="邮箱" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="phone" label="电话" width="130" />
         <el-table-column label="状态" width="120">
           <template #default="{ row }">
             <el-tag :type="row.status==='active' ? 'success' : 'warning'">{{ userStatusText(row.status) }}</el-tag>
@@ -67,10 +81,14 @@
         <el-form-item label="昵称"><el-input v-model="form.nickname"/></el-form-item>
         <el-form-item label="邮箱"><el-input v-model="form.email"/></el-form-item>
         <el-form-item label="电话"><el-input v-model="form.phone"/></el-form-item>
+        <el-form-item label="部门">
+          <el-select v-model="form.departmentId" placeholder="请选择部门" clearable style="width: 100%">
+            <el-option v-for="d in departments" :key="d.departmentId" :label="d.deptName" :value="d.departmentId" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="角色">
           <el-select v-model="form.role" style="width: 100%">
-      <el-option label="管理员" value="admin" />
-      <el-option label="普通成员" value="member" />
+            <el-option v-for="r in roles" :key="r.roleKey" :label="r.roleName + '（' + scopeText(r.dataScope) + '）'" :value="r.roleKey" />
           </el-select>
         </el-form-item>
         <el-form-item label="状态">
@@ -92,8 +110,8 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { userApi } from '@/api'
-import { userRoleText, userStatusText } from '@/utils/dict'
+import { departmentApi, roleApi, userApi } from '@/api'
+import { userStatusText } from '@/utils/dict'
 
 const users = ref([])
 const total = ref(0)
@@ -101,17 +119,57 @@ const currentPage = ref(1)
 const pageSize = ref(10)
 const keyword = ref('')
 const drawer = reactive({ visible: false, title: '' })
-const form = reactive({ userId: null, username: '', password: '', nickname: '', email: '', phone: '', role: 'member', status: 'active' })
+const form = reactive({ userId: null, username: '', password: '', nickname: '', email: '', phone: '', role: 'employee', departmentId: null, status: 'active' })
+
+// 部门与角色字典（下拉选项）
+const departments = ref([])
+const roles = ref([])
+
+function deptName(id) {
+  if (!id) return '—'
+  const d = departments.value.find((x) => x.departmentId === id)
+  return d ? d.deptName : '部门#' + id
+}
+
+function roleName(key) {
+  const r = roles.value.find((x) => x.roleKey === key)
+  return r ? r.roleName : key || '—'
+}
+
+function roleTagType(key) {
+  return { sysadmin: 'danger', hr: 'warning', manager: 'primary', leader: 'warning', employee: 'info', auditor: 'success' }[key] || 'info'
+}
+
+function scopeText(scope) {
+  return { ALL: '全公司', DEPT: '本部门', SELF: '仅本人' }[scope] || scope
+}
+
+async function loadDictionaries() {
+  try {
+    departments.value = (await departmentApi.options()) || []
+  } catch {
+    departments.value = []
+  }
+  try {
+    roles.value = (await roleApi.options()) || []
+  } catch {
+    roles.value = []
+  }
+}
 const loading = ref(false)
+// 加载失败与「没有数据」是两件事，用独立标志驱动告警与重试
+const loadError = ref(false)
 
 async function load() {
   loading.value = true
+  loadError.value = false
   try {
     // /user/list 返回分页对象 { records, total, page, size }
     const resp = await userApi.page({ keyword: keyword.value, page: currentPage.value, size: pageSize.value })
     users.value = resp?.records || []
     total.value = Number(resp?.total || 0)
   } catch (e) {
+    loadError.value = true
     if (String(e.message || '').startsWith('403')) {
       ElMessage.error('没有权限，请使用管理员账号登录');
     } else {
@@ -138,7 +196,7 @@ function onSizeChange(val) {
 }
 
 function openCreate() {
-  Object.assign(form, { userId: null, username: '', password: '', nickname: '', email: '', phone: '', role: 'member', status: 'active' })
+  Object.assign(form, { userId: null, username: '', password: '', nickname: '', email: '', phone: '', role: 'employee', status: 'active' })
   drawer.title = '新增用户'
   drawer.visible = true
 }
@@ -159,7 +217,7 @@ async function submit() {
   try {
     if (form.userId) {
       // 编辑用户：包含密码字段，如果密码为空则后端不更新密码
-      const payload = { username: form.username, nickname: form.nickname, email: form.email, phone: form.phone, role: form.role, status: form.status }
+      const payload = { username: form.username, nickname: form.nickname, email: form.email, phone: form.phone, role: form.role, departmentId: form.departmentId, status: form.status }
       if (form.password && form.password.trim()) {
         payload.password = form.password
       }
@@ -171,7 +229,7 @@ async function submit() {
         ElMessage.warning('请输入初始密码')
         return
       }
-      const payload = { username: form.username, password: form.password, nickname: form.nickname, email: form.email, phone: form.phone, role: form.role, status: form.status }
+      const payload = { username: form.username, password: form.password, nickname: form.nickname, email: form.email, phone: form.phone, role: form.role, departmentId: form.departmentId, status: form.status }
       // POST /user 返回 { userId }
       const res = await userApi.create(payload)
       if (res && res.userId) form.userId = res.userId
@@ -194,7 +252,10 @@ async function remove(row) {
   }
 }
 
-onMounted(load)
+onMounted(async () => {
+  await loadDictionaries()
+  await load()
+})
 </script>
 
 <style scoped>
@@ -241,5 +302,10 @@ onMounted(load)
 .header-actions {
   display: flex;
   align-items: center;
+}
+
+.load-error {
+  margin-bottom: 10px;
+  border-radius: 8px;
 }
 </style>

@@ -57,9 +57,9 @@
           <Breadcrumb />
         </div>
         <div class="header-right">
-          <el-tag size="small" type="info" effect="plain">{{ auth.role || 'member' }}</el-tag>
+          <el-tag size="small" type="info" effect="plain">{{ auth.roleName || auth.role }}</el-tag>
           <el-button link @click="$router.push('/u/profile')">{{ auth.displayName }}</el-button>
-          <el-button v-if="auth.isAdmin" link @click="$router.push('/entry')">切换面板</el-button>
+          <el-button v-if="auth.canUseAdminPanel" link @click="$router.push('/entry')">切换面板</el-button>
           <el-button link type="danger" @click="handleLogout">退出</el-button>
         </div>
       </el-header>

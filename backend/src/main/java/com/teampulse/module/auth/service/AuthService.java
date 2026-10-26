@@ -7,6 +7,7 @@ import com.teampulse.module.auth.dto.AuthDtos;
 import com.teampulse.module.user.dto.UserDtos;
 import com.teampulse.module.user.entity.User;
 import com.teampulse.module.user.mapper.UserMapper;
+import com.teampulse.module.rbac.service.RbacService;
 import com.teampulse.module.user.service.UserService;
 import com.teampulse.security.JwtTokenProvider;
 import com.teampulse.security.LoginUser;
@@ -17,6 +18,8 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 /**
  * 认证服务：登录签发 JWT、注册建号、查询当前登录人。
@@ -34,6 +37,7 @@ public class AuthService {
     private final JwtTokenProvider tokenProvider;
     private final UserService userService;
     private final UserMapper userMapper;
+    private final RbacService rbacService;
 
     public AuthDtos.LoginResponse login(AuthDtos.LoginRequest request) {
         try {
@@ -44,7 +48,12 @@ public class AuthService {
             String token = tokenProvider.generateToken(principal);
             User user = userMapper.selectById(principal.getUserId());
 
-            log.info("用户登录成功: userId={}, username={}", principal.getUserId(), principal.getUsername());
+            log.info("用户登录成功: userId={}, username={}, role={}",
+                    principal.getUserId(), principal.getUsername(), principal.getRole());
+            String departmentName = null;
+            if (principal.getDepartmentId() != null) {
+                departmentName = rbacService.departmentNameMap().get(principal.getDepartmentId());
+            }
             return AuthDtos.LoginResponse.builder()
                     .token(token)
                     .tokenType("Bearer")
@@ -53,7 +62,12 @@ public class AuthService {
                     .username(principal.getUsername())
                     .nickname(principal.getNickname())
                     .role(principal.getRole())
+                    .roleName(principal.getRoleName())
                     .employeeNo(user != null ? user.getEmployeeNo() : null)
+                    .departmentId(principal.getDepartmentId())
+                    .departmentName(departmentName)
+                    .dataScope(principal.getDataScope())
+                    .permissions(principal.getPermissions() == null ? List.of() : List.copyOf(principal.getPermissions()))
                     .build();
         } catch (AuthenticationException ex) {
             // 不区分「用户不存在」与「密码错误」，避免账号枚举

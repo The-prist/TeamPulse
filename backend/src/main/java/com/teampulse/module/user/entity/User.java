@@ -37,8 +37,11 @@ public class User extends BaseEntity {
     /** 员工工号，打卡机上报此值；允许为空（非考勤员工） */
     private String employeeNo;
 
-    /** 系统角色：admin / manager / member */
+    /** 系统角色标识：sysadmin / hr / manager / leader / employee / auditor */
     private String role;
+
+    /** 所属部门，参与数据范围（DEPT）判定 */
+    private Long departmentId;
 
     /** 账号状态：active / inactive */
     private String status;

@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.teampulse.common.api.PageResult;
+import com.teampulse.module.rbac.service.DataScopeService;
+import com.teampulse.module.rbac.service.DataScope;
 import com.teampulse.common.exception.BizException;
 import com.teampulse.common.exception.ErrorCode;
 import com.teampulse.module.kanban.service.KanbanService;
@@ -56,6 +58,7 @@ public class ScheduleService {
     private static final List<String> ALL_STATUSES = List.of("todo", "doing", "done", "canceled");
 
     private final ScheduleMapper scheduleMapper;
+    private final DataScopeService dataScopeService;
     private final UserMapper userMapper;
     private final TeamMapper teamMapper;
     /**
@@ -101,6 +104,15 @@ public class ScheduleService {
         var wrapper = Wrappers.<Schedule>lambdaQuery()
                 .orderBy(true, asc, Schedule::getStartTime)
                 .orderBy(true, asc, Schedule::getScheduleId);
+        // 数据范围：员工只看自己的、经理看本部门、管理员不限制
+        DataScope scope = dataScopeService.current();
+        if (!scope.isUnrestricted()) {
+            if (scope.userIds().isEmpty()) {
+                wrapper.apply("1 = 0");
+            } else {
+                wrapper.in(Schedule::getCreatorId, scope.userIds());
+            }
+        }
         if (teamId != null) {
             wrapper.eq(Schedule::getTeamId, teamId);
         }

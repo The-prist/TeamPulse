@@ -40,7 +40,7 @@ public class DashboardController {
     @Operation(summary = "全公司概览（管理员）",
             description = "用户/团队/日程/日志/看板/设备与今日打卡的聚合指标，days 默认 7、区间 [1,90]")
     @GetMapping("/admin")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('dashboard:company')")
     public ApiResponse<DashboardDtos.OverviewVO> admin(@RequestParam(defaultValue = "7") int days) {
         return ApiResponse.ok(dashboardService.adminOverview(days));
     }

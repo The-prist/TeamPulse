@@ -35,7 +35,7 @@
 
       <div class="footer-tip">
         <el-icon><InfoFilled /></el-icon>
-        当前账号：{{ auth.displayName }}（{{ auth.role || 'member' }}）
+        当前账号：{{ auth.displayName }}（{{ auth.roleName || auth.role }}）
       </div>
     </el-card>
   </div>
@@ -52,7 +52,7 @@ const auth = useAuthStore()
 
 onMounted(() => {
   // 非管理员没有选择权，直接回工作台
-  if (!auth.isAdmin) {
+  if (!auth.canUseAdminPanel) {
     router.replace('/u/home')
   }
 })

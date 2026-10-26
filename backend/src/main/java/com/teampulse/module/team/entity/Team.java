@@ -29,4 +29,7 @@ public class Team extends BaseEntity {
 
     /** 创建人，删除团队时唯一的「非管理员」放行依据 */
     private Long creatorId;
+
+    /** 所属部门，参与部门数据范围过滤 */
+    private Long departmentId;
 }

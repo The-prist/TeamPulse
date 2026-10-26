@@ -19,8 +19,12 @@ import java.io.IOException;
 /**
  * JWT 认证过滤器。
  *
- * <p>流程：从 Authorization 头取 Bearer 令牌 → 解析 → 写入 SecurityContext。
- * 解析失败不在此处抛异常，而是保持匿名，由后续授权规则拒绝并触发统一的 401 响应。
+ * <p>流程：从 Authorization 头取 Bearer 令牌 → 解析出 userId → **按 userId 重新加载主体**
+ * → 写入 SecurityContext。
+ *
+ * <p>为什么不在令牌里塞权限点：角色权限调整后，令牌里的权限会一直陈旧到过期。
+ * 这里每次请求重新加载一次（角色权限有进程内缓存，实际只有一次主键查询），
+ * 管理员改了角色权限，用户下一次操作就生效，不用重新登录。
  */
 @Slf4j
 @Component
@@ -31,6 +35,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final String PREFIX = "Bearer ";
 
     private final JwtTokenProvider tokenProvider;
+    private final UserDetailsServiceImpl userDetailsService;
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
@@ -38,12 +43,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     @NonNull FilterChain filterChain) throws ServletException, IOException {
         String token = resolveToken(request);
         if (StringUtils.hasText(token) && SecurityContextHolder.getContext().getAuthentication() == null) {
-            LoginUser user = tokenProvider.parseToken(token);
-            if (user != null) {
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+            LoginUser fromToken = tokenProvider.parseToken(token);
+            if (fromToken != null) {
+                // 重新加载，拿到最新的角色、数据范围与权限点
+                LoginUser user = userDetailsService.loadById(fromToken.getUserId());
+                if (user != null && user.isEnabled()) {
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
+                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                }
             }
         }
         filterChain.doFilter(request, response);

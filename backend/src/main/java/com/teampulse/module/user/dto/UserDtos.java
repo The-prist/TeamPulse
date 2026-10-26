@@ -36,7 +36,7 @@ public final class UserDtos {
         @Pattern(regexp = "^[A-Za-z0-9_-]{0,32}$", message = "工号只能包含字母、数字、下划线与短横线")
         private String employeeNo;
 
-        @Pattern(regexp = "^(admin|manager|member)$", message = "角色只能是 admin/manager/member")
+        @Pattern(regexp = "^(sysadmin|hr|manager|leader|employee|auditor)$", message = "角色取值非法")
         private String role = "member";
 
         @Pattern(regexp = "^(active|inactive)$", message = "状态只能是 active/inactive")
@@ -52,8 +52,11 @@ public final class UserDtos {
         private String phone;
         @Pattern(regexp = "^[A-Za-z0-9_-]{0,32}$", message = "工号只能包含字母、数字、下划线与短横线")
         private String employeeNo;
-        @Pattern(regexp = "^(admin|manager|member)$", message = "角色只能是 admin/manager/member")
+        @Pattern(regexp = "^(sysadmin|hr|manager|leader|employee|auditor)$", message = "角色取值非法")
         private String role;
+
+    /** 所属部门，参与数据范围（DEPT）判定 */
+    private Long departmentId;
         @Pattern(regexp = "^(active|inactive)$", message = "状态只能是 active/inactive")
         private String status;
     }

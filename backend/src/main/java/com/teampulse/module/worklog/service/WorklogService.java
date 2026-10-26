@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.teampulse.common.api.PageResult;
+import com.teampulse.module.rbac.service.DataScopeService;
+import com.teampulse.module.rbac.service.DataScope;
 import com.teampulse.common.exception.BizException;
 import com.teampulse.common.exception.ErrorCode;
 import com.teampulse.module.user.entity.User;
@@ -54,6 +56,7 @@ public class WorklogService {
     private static final int DEFAULT_STAT_DAYS = 30;
 
     private final WorklogMapper worklogMapper;
+    private final DataScopeService dataScopeService;
     private final UserMapper userMapper;
 
     // ==================================================================
@@ -84,6 +87,15 @@ public class WorklogService {
         LambdaQueryWrapper<Worklog> wrapper = Wrappers.<Worklog>lambdaQuery()
                 .orderBy(true, asc, Worklog::getLogDate)
                 .orderBy(true, asc, Worklog::getWorklogId);
+        // 数据范围：员工只看自己的、经理看本部门、管理员不限制
+        DataScope scope = dataScopeService.current();
+        if (!scope.isUnrestricted()) {
+            if (scope.userIds().isEmpty()) {
+                wrapper.apply("1 = 0");
+            } else {
+                wrapper.in(Worklog::getCreatorId, scope.userIds());
+            }
+        }
         if (creatorId != null) {
             wrapper.eq(Worklog::getCreatorId, creatorId);
         }

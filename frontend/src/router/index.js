@@ -36,6 +36,7 @@ const routes = [
       { path: 'attendance/records', name: 'attendanceRecords', component: () => import('@/views/attendance/AttendanceRecords.vue'), meta: { title: '打卡记录', hasList: true } },
       { path: 'attendance/devices', name: 'attendanceDevices', component: () => import('@/views/attendance/DeviceList.vue'), meta: { title: '打卡设备', hasList: true } },
       { path: 'attendance/rule', name: 'attendanceRule', component: () => import('@/views/attendance/AttendanceRule.vue'), meta: { title: '考勤规则' } },
+  { path: 'attendance/approvals', name: 'attendanceApprovals', component: () => import('@/views/attendance/MakeupApproval.vue'), meta: { title: '补卡审批', hasList: true } },
 
       { path: 'kanban', name: 'kanbanList', component: () => import('@/views/kanban/KanbanList.vue'), meta: { title: '看板管理', hasList: true } },
       { path: 'kanban/:id', name: 'kanbanDetail', component: () => import('@/views/kanban/KanbanDetail.vue'), meta: { title: '看板详情', parent: '/kanban' } },
@@ -44,7 +45,8 @@ const routes = [
       { path: 'comments', name: 'commentList', component: () => import('@/views/comment/CommentList.vue'), meta: { title: '评论管理', hasList: true } },
       { path: 'worklogs', name: 'worklogList', component: () => import('@/views/worklog/WorklogList.vue'), meta: { title: '日志管理', hasList: true } },
       { path: 'worklogs/:id', name: 'worklogDetail', component: () => import('@/views/worklog/WorklogDetail.vue'), meta: { title: '日志详情', parent: '/worklogs' } },
-      { path: 'users', name: 'userList', component: () => import('@/views/users/UserList.vue'), meta: { title: '用户管理', hasList: true } },
+      { path: 'audit', name: 'auditLogs', component: () => import('@/views/audit/AuditLogList.vue'), meta: { title: '审计日志', hasList: true } },
+  { path: 'users', name: 'userList', component: () => import('@/views/users/UserList.vue'), meta: { title: '用户管理', hasList: true } },
       { path: 'teams', name: 'teamList', component: () => import('@/views/teams/TeamList.vue'), meta: { title: '团队管理', hasList: true } },
     ],
   },
@@ -101,10 +103,23 @@ router.beforeEach((to) => {
   }
 
   const user = tokenStorage.getUser() || {}
-  const role = String(user.role || '').toLowerCase()
+  // RBAC 改造前的登录态没有 permissions 字段，继续用它会被静默降级到用户工作台，
+  // 不如直接清掉让用户重新登录一次，行为可预期。
+  if (!Array.isArray(user.permissions)) {
+    tokenStorage.clear()
+    return { path: '/login', query: { redirect: to.fullPath } }
+  }
+  const perms = user.permissions
   const preferred = localStorage.getItem('preferredPanel')
+  // 能不能进管理后台不再看角色名，而是看是否拥有任一管理类权限（与 auth store 保持一致）
+  const ADMIN_PANEL_PERMS = [
+    'dashboard:company', 'user:manage', 'team:manage', 'schedule:manage', 'kanban:manage',
+    'worklog:manage', 'comment:manage', 'sensitive:manage', 'attendance:rule',
+    'attendance:approve', 'device:manage',
+  ]
+  const canAdmin = perms.some((p) => ADMIN_PANEL_PERMS.includes(p))
 
-  if (role === 'admin') {
+  if (canAdmin) {
     // 管理员首次登录必须先选择进入哪套面板
     if (!preferred && to.path !== '/entry') {
       return { path: '/entry' }

@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.teampulse.common.api.PageResult;
+import com.teampulse.module.rbac.service.DataScopeService;
+import com.teampulse.module.rbac.service.DataScope;
 import com.teampulse.common.exception.BizException;
 import com.teampulse.common.exception.ErrorCode;
 import com.teampulse.module.team.dto.TeamDtos;
@@ -54,6 +56,7 @@ public class TeamService {
     private static final String STATUS_ACTIVE = "active";
 
     private final TeamMapper teamMapper;
+    private final DataScopeService dataScopeService;
     private final TeamMemberMapper teamMemberMapper;
     private final UserMapper userMapper;
 
@@ -64,6 +67,18 @@ public class TeamService {
     /** 管理端分页：团队名模糊搜索，成员数与负责人由 toVOs 统一补齐 */
     public PageResult<TeamDtos.TeamVO> page(String keyword, long page, long size) {
         var wrapper = Wrappers.<Team>lambdaQuery().orderByDesc(Team::getTeamId);
+        // 数据范围：经理看本部门团队，员工只看自己创建或参与的团队
+        DataScope scope = dataScopeService.current();
+        if (!scope.isUnrestricted()) {
+            if (scope.departmentId() != null) {
+                wrapper.eq(Team::getDepartmentId, scope.departmentId());
+            } else {
+                Long me = SecurityUtils.currentUserId();
+                wrapper.and(w -> w.eq(Team::getCreatorId, me)
+                        .or().inSql(Team::getTeamId,
+                                "SELECT team_id FROM team_member WHERE deleted = 0 AND user_id = " + me));
+            }
+        }
         if (StringUtils.hasText(keyword)) {
             wrapper.like(Team::getTeamName, keyword.trim());
         }

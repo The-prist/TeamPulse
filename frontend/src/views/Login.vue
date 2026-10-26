@@ -120,7 +120,7 @@ async function handleLogin() {
     ElMessage.success('登录成功')
 
     const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''
-    if (!auth.isAdmin) {
+    if (!auth.canUseAdminPanel) {
       router.replace(redirect || '/u/home')
       return
     }

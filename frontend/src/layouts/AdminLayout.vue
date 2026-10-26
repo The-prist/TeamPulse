@@ -15,56 +15,67 @@
           <el-icon><Odometer /></el-icon>
           <span>仪表盘</span>
         </el-menu-item>
-        <el-menu-item index="/overview/company">
+        <el-menu-item v-if="auth.hasPerm('dashboard:company')" index="/overview/company">
           <el-icon><DataAnalysis /></el-icon>
           <span>公司概览</span>
         </el-menu-item>
 
         <!-- 物联网考勤：本项目的差异点，单独分组 -->
         <el-menu-item-group title="物联网考勤">
-          <el-menu-item index="/attendance/dashboard">
+          <el-menu-item v-if="auth.hasPerm('attendance:view')" index="/attendance/dashboard">
             <el-icon><Monitor /></el-icon>
             <span>考勤看板</span>
           </el-menu-item>
-          <el-menu-item index="/attendance/records">
+          <el-menu-item v-if="auth.hasPerm('attendance:view')" index="/attendance/records">
             <el-icon><Clock /></el-icon>
             <span>打卡记录</span>
           </el-menu-item>
-          <el-menu-item index="/attendance/devices">
+          <el-menu-item v-if="auth.hasPerm('device:view')" index="/attendance/devices">
             <el-icon><Cpu /></el-icon>
             <span>打卡设备</span>
           </el-menu-item>
-          <el-menu-item index="/attendance/rule">
+          <el-menu-item v-if="auth.hasPerm('attendance:rule')" index="/attendance/rule">
             <el-icon><Setting /></el-icon>
             <span>考勤规则</span>
+          </el-menu-item>          <el-menu-item v-if="auth.hasPerm('attendance:approve')" index="/attendance/approvals">
+            <el-icon><Checked /></el-icon>
+            <span>补卡审批</span>
           </el-menu-item>
         </el-menu-item-group>
 
         <el-menu-item-group title="协作">
-          <el-menu-item index="/schedule">
+          <el-menu-item v-if="auth.hasPerm('schedule:view')" index="/schedule">
             <el-icon><Calendar /></el-icon>
             <span>日程管理</span>
           </el-menu-item>
-          <el-menu-item index="/kanban">
+          <el-menu-item v-if="auth.hasPerm('kanban:view')" index="/kanban">
             <el-icon><Grid /></el-icon>
             <span>看板管理</span>
           </el-menu-item>
-          <el-menu-item index="/worklogs">
+          <el-menu-item v-if="auth.hasPerm('worklog:view')" index="/worklogs">
             <el-icon><Document /></el-icon>
             <span>日志管理</span>
           </el-menu-item>
-          <el-menu-item index="/comments">
+          <el-menu-item v-if="auth.hasPerm('comment:view')" index="/comments">
             <el-icon><ChatDotRound /></el-icon>
             <span>评论管理</span>
           </el-menu-item>
         </el-menu-item-group>
 
+        <!-- 系统：审计日志只对审计类角色可见（audit:view） -->
+        <el-menu-item-group v-if="auth.hasPerm('audit:view')" title="系统">
+          <el-menu-item index="/audit">
+            <el-icon><DocumentChecked /></el-icon>
+            <span>审计日志</span>
+          </el-menu-item>
+        </el-menu-item-group>
+
         <el-menu-item-group title="组织">
-          <el-menu-item index="/users">
+          <el-menu-item v-if="auth.hasPerm('user:view')" index="/users">
             <el-icon><User /></el-icon>
             <span>用户管理</span>
           </el-menu-item>
-          <el-menu-item index="/teams">
+          <el-menu-item v-if="auth.hasPerm('team:view')" index="/teams">
             <el-icon><UserFilled /></el-icon>
             <span>团队管理</span>
           </el-menu-item>
@@ -79,10 +90,10 @@
         </div>
         <div class="header-right">
           <el-tag size="small" :type="auth.isAdmin ? 'danger' : 'info'" effect="plain">
-            {{ auth.role || 'member' }}
+            {{ auth.roleName || auth.role }}
           </el-tag>
           <span class="user-name">{{ auth.displayName }}</span>
-          <el-button v-if="auth.isAdmin" link @click="switchPanel">切换面板</el-button>
+          <el-button v-if="auth.canUseAdminPanel" link @click="switchPanel">切换面板</el-button>
           <el-button link type="danger" @click="handleLogout">退出</el-button>
         </div>
       </el-header>

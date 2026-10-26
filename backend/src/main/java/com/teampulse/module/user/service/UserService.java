@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.teampulse.common.api.PageResult;
+import com.teampulse.module.rbac.service.DataScopeService;
+import com.teampulse.module.rbac.service.DataScope;
 import com.teampulse.common.exception.BizException;
 import com.teampulse.common.exception.ErrorCode;
 import com.teampulse.module.user.dto.UserDtos;
@@ -27,11 +29,23 @@ import java.util.List;
 public class UserService {
 
     private final UserMapper userMapper;
+    private final DataScopeService dataScopeService;
     private final PasswordEncoder passwordEncoder;
 
     /** 分页查询，keyword 同时匹配用户名 / 昵称 / 邮箱 / 工号 */
     public PageResult<User> page(String keyword, long page, long size) {
         var wrapper = Wrappers.<User>lambdaQuery().orderByDesc(User::getUserId);
+        // 数据范围：经理只看本部门员工，员工只能看到自己
+        DataScope scope = dataScopeService.current();
+        if (!scope.isUnrestricted()) {
+            if (scope.departmentId() != null) {
+                wrapper.eq(User::getDepartmentId, scope.departmentId());
+            } else if (!scope.userIds().isEmpty()) {
+                wrapper.in(User::getUserId, scope.userIds());
+            } else {
+                wrapper.apply("1 = 0");
+            }
+        }
         if (StringUtils.hasText(keyword)) {
             String kw = keyword.trim();
             wrapper.and(w -> w.like(User::getUsername, kw)
@@ -110,11 +124,14 @@ public class UserService {
         if (req.getNickname() != null) {
             user.setNickname(req.getNickname());
         }
+        if (StringUtils.hasText(req.getRole())) {
+            user.setRole(req.getRole());
+        }
+        if (req.getDepartmentId() != null) {
+            user.setDepartmentId(req.getDepartmentId());
+        }
         if (req.getPhone() != null) {
             user.setPhone(req.getPhone());
-        }
-        if (req.getRole() != null) {
-            user.setRole(req.getRole());
         }
         if (req.getStatus() != null) {
             user.setStatus(req.getStatus());

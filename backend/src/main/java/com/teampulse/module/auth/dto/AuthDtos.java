@@ -6,6 +6,9 @@ import jakarta.validation.constraints.Size;
 import lombok.Builder;
 import lombok.Data;
 
+import java.util.List;
+import lombok.Data;
+
 /**
  * 认证相关请求/响应体。
  */
@@ -53,7 +56,16 @@ public final class AuthDtos {
         private Long userId;
         private String username;
         private String nickname;
+        /** 角色标识：sysadmin / hr / manager / leader / employee / auditor */
         private String role;
+        /** 角色展示名，如「部门经理」 */
+        private String roleName;
         private String employeeNo;
+        private Long departmentId;
+        private String departmentName;
+        /** 数据范围：ALL / DEPT / SELF */
+        private String dataScope;
+        /** 权限点集合，前端据此渲染菜单与按钮 */
+        private List<String> permissions;
     }
 }
