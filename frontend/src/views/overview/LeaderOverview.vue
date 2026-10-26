@@ -103,6 +103,17 @@
           <el-button link @click="$router.push('/u/teams')">查看全部团队</el-button>
         </div>
       </template>
+      <!-- 加载失败与「没有数据」要能区分，否则用户会误以为真的没有数据 -->
+      <el-alert
+        v-if="loadError"
+        type="error"
+        :closable="false"
+        show-icon
+        class="load-error"
+        title="数据加载失败：网络或后端异常，当前显示的可能不是最新数据"
+      >
+        <el-button size="small" type="primary" link :loading="loading" @click="load">重新加载</el-button>
+      </el-alert>
       <el-table :data="ledTeams" size="small" empty-text="我目前不是任何团队的负责人">
         <el-table-column prop="teamId" label="#" width="70" />
         <el-table-column prop="teamName" label="团队名称" min-width="160" />
@@ -160,6 +171,8 @@ import { ElMessage } from 'element-plus'
 import { dashboardApi, teamApi } from '@/api'
 
 const loading = ref(false)
+// 加载失败与「没有数据」是两件事，用独立标志驱动告警与重试
+const loadError = ref(false)
 const days = ref(7)
 
 const stats = reactive({
@@ -204,6 +217,7 @@ function priorityText(priority) {
 
 async function load() {
   loading.value = true
+  loadError.value = false
   try {
     const data = await dashboardApi.me({ days: days.value })
 
@@ -228,6 +242,7 @@ async function load() {
     try {
       teams.value = (await teamApi.my()) || []
     } catch {
+      loadError.value = true
       teams.value = []
     }
   } catch (e) {
@@ -380,5 +395,10 @@ onMounted(load)
 }
 .status-item.muted .status-num {
   color: #94a3b8;
+}
+
+.load-error {
+  margin-bottom: 10px;
+  border-radius: 8px;
 }
 </style>

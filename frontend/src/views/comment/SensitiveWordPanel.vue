@@ -36,6 +36,17 @@
       </template>
     </el-alert>
 
+    <!-- 加载失败与「没有数据」要能区分，否则用户会误以为真的没有数据 -->
+    <el-alert
+      v-if="loadError"
+      type="error"
+      :closable="false"
+      show-icon
+      class="load-error"
+      title="数据加载失败：网络或后端异常，当前显示的可能不是最新数据"
+    >
+      <el-button size="small" type="primary" link :loading="loading" @click="load">重新加载</el-button>
+    </el-alert>
     <el-table :data="rows" v-loading="loading" size="small" empty-text="词库为空，先新增几个敏感词">
       <el-table-column prop="wordId" label="编号" width="80" />
       <el-table-column prop="word" label="敏感词" min-width="160">
@@ -106,6 +117,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { sensitiveWordApi } from '@/api'
 
 const loading = ref(false)
+// 加载失败与「没有数据」是两件事，用独立标志驱动告警与重试
+const loadError = ref(false)
 const rows = ref([])
 const total = ref(0)
 const page = ref(1)
@@ -132,6 +145,7 @@ function formatTime(value) {
 
 async function load() {
   loading.value = true
+  loadError.value = false
   try {
     const data = await sensitiveWordApi.page({
       keyword: keyword.value || undefined,
@@ -141,6 +155,7 @@ async function load() {
     rows.value = data?.records || []
     total.value = Number(data?.total || 0)
   } catch {
+    loadError.value = true
     rows.value = []
     total.value = 0
   } finally {
@@ -270,5 +285,10 @@ onMounted(load)
   display: flex;
   justify-content: flex-end;
   margin-top: 12px;
+}
+
+.load-error {
+  margin-bottom: 10px;
+  border-radius: 8px;
 }
 </style>

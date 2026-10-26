@@ -16,6 +16,17 @@
           </div>
         </div>
       </template>
+      <!-- 加载失败与「没有数据」要能区分，否则用户会误以为真的没有数据 -->
+      <el-alert
+        v-if="loadError"
+        type="error"
+        :closable="false"
+        show-icon
+        class="load-error"
+        title="数据加载失败：网络或后端异常，当前显示的可能不是最新数据"
+      >
+        <el-button size="small" type="primary" link :loading="loading" @click="load">重新加载</el-button>
+      </el-alert>
       <el-table :data="teams" v-loading="loading" @sort-change="onSortChange" :default-sort="{ prop: 'teamId', order: 'ascending' }">
         <el-table-column prop="teamId" label="#" width="80" />
         <el-table-column prop="teamName" label="团队名称" sortable="custom" />
@@ -151,6 +162,8 @@ const keyword = ref('')
 const drawer = reactive({ visible: false, title: '' })
 const form = reactive({ teamId: null, teamName: '', description: '' })
 const loading = ref(false)
+// 加载失败与「没有数据」是两件事，用独立标志驱动告警与重试
+const loadError = ref(false)
 const activeTab = ref('basic')
 
 // 用户映射
@@ -216,6 +229,7 @@ function getUserName(creatorId) {
 
 async function load() {
   loading.value = true
+  loadError.value = false
   try {
     if (!auth.user?.userId) {
       ElMessage.error('请先登录')
@@ -223,9 +237,9 @@ async function load() {
       return
     }
 
-    // 管理员：GET /team/list（分页，仅管理员可用）；非管理员退回 GET /team/my（数组）
+    // 有 team:view 权限走分页接口（后端按数据范围过滤）；否则退回「我参与的团队」
     let records = []
-    if (auth.isAdmin) {
+    if (auth.hasPerm('team:view')) {
       const page = await teamApi.page({ keyword: keyword.value, page: 1, size: 200 })
       records = page?.records || []
     } else {
@@ -239,6 +253,7 @@ async function load() {
       await loadUserInfo(creatorIds)
     }
   } catch (e) {
+    loadError.value = true
     teams.value = []
     if (String(e.message || '').startsWith('403')) {
       ElMessage.error('没有权限，请使用管理员账号登录');
@@ -545,5 +560,10 @@ onMounted(load)
 
 :deep(.el-pagination) {
   justify-content: flex-end;
+}
+
+.load-error {
+  margin-bottom: 10px;
+  border-radius: 8px;
 }
 </style>

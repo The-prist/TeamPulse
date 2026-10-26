@@ -31,6 +31,17 @@
     </el-card>
 
     <el-card shadow="never" class="table-card">
+      <!-- 加载失败与「没有数据」要能区分，否则用户会误以为真的没有数据 -->
+      <el-alert
+        v-if="loadError"
+        type="error"
+        :closable="false"
+        show-icon
+        class="load-error"
+        title="数据加载失败：网络或后端异常，当前显示的可能不是最新数据"
+      >
+        <el-button size="small" type="primary" link :loading="loading" @click="load">重新加载</el-button>
+      </el-alert>
       <el-table v-loading="loading" :data="rows" size="small" empty-text="还没有注册任何打卡设备">
         <el-table-column prop="deviceSn" label="设备序列号" min-width="160" />
         <el-table-column prop="deviceName" label="设备名称" min-width="150" />
@@ -126,6 +137,8 @@ import { deviceApi } from '@/api'
 import { deviceStatusText, deviceStatusType, formatDateTime } from '@/utils/attendance'
 
 const loading = ref(false)
+// 加载失败与「没有数据」是两件事，用独立标志驱动告警与重试
+const loadError = ref(false)
 const rows = ref([])
 const total = ref(0)
 const statistics = ref({ total: 0, online: 0 })
@@ -150,6 +163,7 @@ const secretInfo = reactive({ deviceSn: '', secret: '' })
 
 async function load() {
   loading.value = true
+  loadError.value = false
   try {
     const params = { ...query }
     if (!params.keyword) delete params.keyword
@@ -159,6 +173,7 @@ async function load() {
     total.value = Number(data?.total || 0)
     statistics.value = await deviceApi.statistics()
   } catch {
+    loadError.value = true
     rows.value = []
     total.value = 0
   } finally {
@@ -315,5 +330,10 @@ onMounted(load)
   background: var(--tp-bg-subtle);
   padding: 1px 5px;
   border-radius: 4px;
+}
+
+.load-error {
+  margin-bottom: 10px;
+  border-radius: 8px;
 }
 </style>

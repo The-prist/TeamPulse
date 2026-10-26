@@ -115,6 +115,17 @@
             <span v-if="!row.lateMinutes && !row.earlyLeaveMinutes" class="muted">—</span>
           </template>
         </el-table-column>
+        <!-- 加载失败与「没有数据」要能区分，否则用户会误以为真的没有数据 -->
+        <el-alert
+          v-if="loadError"
+          type="error"
+          :closable="false"
+          show-icon
+          class="load-error"
+          title="数据加载失败：网络或后端异常，当前显示的可能不是最新数据"
+        >
+          <el-button size="small" type="primary" link :loading="loading" @click="load">重新加载</el-button>
+        </el-alert>
         <el-table-column label="判定" width="110">
           <template #default="{ row }">
             <el-tag size="small" :type="statusTagType(row.attendanceStatus)">
@@ -149,6 +160,8 @@ const legend = [
 ]
 
 const loading = ref(false)
+// 加载失败与「没有数据」是两件事，用独立标志驱动告警与重试
+const loadError = ref(false)
 const rows = ref([])
 const cursor = ref(startOfMonth(new Date()))
 const dayDrawer = reactive({ visible: false, title: '', date: '', rows: [] })
@@ -283,6 +296,7 @@ const monthStats = computed(() => {
 
 async function load() {
   loading.value = true
+  loadError.value = false
   try {
     // 取当前显示月份前后各一周，保证 42 格里的跨月日期也有数据
     const y = cursor.value.getFullYear()
@@ -292,6 +306,7 @@ async function load() {
     const data = await attendanceApi.calendar({ from, to })
     rows.value = Array.isArray(data) ? data : []
   } catch {
+    loadError.value = true
     rows.value = []
   } finally {
     loading.value = false
@@ -532,5 +547,10 @@ onMounted(load)
 }
 .muted {
   color: #94a3b8;
+}
+
+.load-error {
+  margin-bottom: 10px;
+  border-radius: 8px;
 }
 </style>

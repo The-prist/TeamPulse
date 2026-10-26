@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
+import { clearNetError, reportNetError } from '@/utils/netErrors'
 
 /**
  * 统一 HTTP 层。
@@ -40,6 +41,24 @@ export class BizError extends Error {
   }
 }
 
+/** 从响应头取 traceId；取不到返回 undefined，提示条就不显示编号 */
+function traceOf(responseOrError) {
+  const headers = responseOrError?.headers
+  if (!headers) return undefined
+  return headers['x-trace-id'] || headers['X-Trace-Id'] || undefined
+}
+
+/** 是否是登录请求（用于区分「密码错误」与「会话过期」） */
+function isLoginRequest(config) {
+  const url = String(config?.url || '')
+  return url.includes('/auth/login')
+}
+
+/** 生成「重放这次请求」的函数；没有 config 时返回 null，全局提示条不显示重试按钮 */
+function retryOf(config) {
+  if (!config) return null
+  return () => http.request(config)
+}
 const http = axios.create({
   baseURL: import.meta.env.VITE_API_BASE || '/api/v1',
   timeout: 20000,
@@ -54,9 +73,15 @@ http.interceptors.request.use((config) => {
   return config
 })
 
+// 并发请求同时 401 时只跳一次：首屏常常 Promise.all 发 4~6 个请求，
+// 每个都会拿到 401，若不加标志会连续触发多次 location.assign。
+let redirectingToLogin = false
+
 function redirectToLogin() {
   tokenStorage.clear()
+  if (redirectingToLogin) return
   if (!window.location.pathname.startsWith('/login')) {
+    redirectingToLogin = true
     // 用整页跳转而不是 router.push：确保内存中的旧状态与定时器（如轮询）一并销毁
     window.location.assign('/login')
   }
@@ -70,17 +95,31 @@ http.interceptors.response.use(
       return body
     }
     if (body.code === 0) {
+      clearNetError()
       return body.data
     }
     const message = body.message || '请求失败'
     if (!response.config?.silent) {
       ElMessage.error(message)
+      reportNetError(message, retryOf(response.config), traceOf(response))
     }
     return Promise.reject(new BizError(message, body.code))
   },
   (error) => {
     const status = error?.response?.status
     const payload = error?.response?.data
+
+    // 请求超时：axios 抛 ECONNABORTED，同样没有 response，但与「后端没启动」完全是两回事。
+    // 不单独识别的话，后端只是慢一点，用户会看到「无法连接后端服务，请启动后端」这种误导提示。
+    if (error?.code === 'ECONNABORTED' || /timeout/i.test(error?.message || '')) {
+      const seconds = Math.round((error?.config?.timeout || 20000) / 1000)
+      const hint = `请求超时（${seconds} 秒），后端可能繁忙，请稍后重试`
+      if (!error.config?.silent) {
+        ElMessage.error(hint)
+        reportNetError(hint, retryOf(error.config), traceOf(error.response))
+      }
+      return Promise.reject(new BizError(hint, 40800))
+    }
 
     // 后端没启动 / 挂了时，开发服务器的代理会返回 5xx，且响应体不是统一 JSON 结构。
     // 这时给一句能直接照做的提示，比 "Request failed with status code 500" 有用得多。
@@ -92,6 +131,7 @@ http.interceptors.response.use(
       const hint = '无法连接后端服务（默认 127.0.0.1:8080）。请确认后端已启动，可在项目根目录执行 .\\scripts\\run-local.ps1'
       if (!error.config?.silent) {
         ElMessage.error(hint)
+        reportNetError(hint, retryOf(error.config), traceOf(error.response))
       }
       return Promise.reject(new BizError(hint, status || 0))
     }
@@ -99,6 +139,14 @@ http.interceptors.response.use(
     const message = (payload && (payload.message || payload.error)) || error.message || '网络异常'
 
     if (status === 401) {
+      // 登录接口返回 401 表示「用户名或密码错误」，不是会话过期：不提示过期、也不跳转
+      if (isLoginRequest(error.config)) {
+        const loginMessage = (payload && payload.message) || '用户名或密码错误'
+        if (!error.config?.silent) {
+          ElMessage.error(loginMessage)
+        }
+        return Promise.reject(new BizError(loginMessage, 40100))
+      }
       if (!error.config?.silent) {
         ElMessage.warning('登录已过期，请重新登录')
       }
@@ -113,6 +161,7 @@ http.interceptors.response.use(
     }
     if (!error.config?.silent) {
       ElMessage.error(message)
+      reportNetError(message, retryOf(error.config), traceOf(error.response))
     }
     return Promise.reject(new BizError(message, status || 0))
   },

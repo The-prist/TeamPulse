@@ -95,6 +95,17 @@
           打卡流水
           <span class="section-sub">共 {{ data.records.length }} 条</span>
         </div>
+        <!-- 加载失败与「没有数据」要能区分，否则用户会误以为真的没有数据 -->
+        <el-alert
+          v-if="loadError"
+          type="error"
+          :closable="false"
+          show-icon
+          class="load-error"
+          title="数据加载失败：网络或后端异常，当前显示的可能不是最新数据"
+        >
+          <el-button size="small" type="primary" link :loading="loading" @click="load">重新加载</el-button>
+        </el-alert>
         <el-table :data="data.records" size="small" empty-text="该区间没有打卡流水" max-height="260">
           <el-table-column label="打卡时间" width="160">
             <template #default="{ row }">{{ formatDateTime(row.punchTime) }}</template>
@@ -142,6 +153,8 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue'])
 
 const loading = ref(false)
+// 加载失败与「没有数据」是两件事，用独立标志驱动告警与重试
+const loadError = ref(false)
 const data = ref(null)
 
 const drawerTitle = computed(() => {
@@ -187,6 +200,7 @@ function minutesText(m) {
 async function load() {
   if (!props.userId) return
   loading.value = true
+  loadError.value = false
   data.value = null
   try {
     const params = {}
@@ -194,6 +208,7 @@ async function load() {
     if (props.to) params.to = props.to
     data.value = await attendanceApi.employeeDetail(props.userId, params)
   } catch {
+    loadError.value = true
     data.value = null
   } finally {
     loading.value = false
@@ -277,5 +292,10 @@ watch(
 }
 .muted {
   color: var(--tp-text-faint);
+}
+
+.load-error {
+  margin-bottom: 10px;
+  border-radius: 8px;
 }
 </style>

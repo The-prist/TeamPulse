@@ -20,6 +20,17 @@
           </div>
         </div>
       </template>
+    <!-- 加载失败与「没有数据」要能区分，否则用户会误以为真的没有数据 -->
+    <el-alert
+      v-if="loadError"
+      type="error"
+      :closable="false"
+      show-icon
+      class="load-error"
+      title="数据加载失败：网络或后端异常，当前显示的可能不是最新数据"
+    >
+      <el-button size="small" type="primary" link :loading="loading" @click="loadKanbans">重新加载</el-button>
+    </el-alert>
     <el-table :data="pagedList" v-loading="loading">
       <el-table-column prop="kanbanId" label="编号" width="80" />
       <el-table-column prop="kanbanName" label="名称" />
@@ -115,6 +126,8 @@ const router = useRouter()
 
 const list = ref([])
 const loading = ref(false)
+// 加载失败与「没有数据」是两件事，用独立标志驱动告警与重试
+const loadError = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(10)
 const pagedList = computed(() => {
@@ -218,6 +231,7 @@ const loadAvailableTeams = async () => {
 // 加载看板数据
 const loadKanbans = async () => {
   loading.value = true
+  loadError.value = false
   try {
     // /kanban/my 返回「本人创建的 + 所在团队」的看板数组，两种视图共用同一数据源
     const kanbans = await kanbanApi.my()
@@ -232,6 +246,7 @@ const loadKanbans = async () => {
     currentPage.value = 1
   } catch (error) {
     console.error('加载看板失败:', error)
+    loadError.value = true
   } finally {
     loading.value = false
   }
@@ -377,5 +392,10 @@ onMounted(() => {
 
 :deep(.el-pagination) {
   justify-content: flex-end;
+}
+
+.load-error {
+  margin-bottom: 10px;
+  border-radius: 8px;
 }
 </style>

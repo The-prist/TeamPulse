@@ -106,6 +106,17 @@
 
       <div class="teams-wrap">
         <div class="teams-title">团队列表（{{ teams.length }}）</div>
+        <!-- 加载失败与「没有数据」要能区分，否则用户会误以为真的没有数据 -->
+        <el-alert
+          v-if="loadError"
+          type="error"
+          :closable="false"
+          show-icon
+          class="load-error"
+          title="数据加载失败：网络或后端异常，当前显示的可能不是最新数据"
+        >
+          <el-button size="small" type="primary" link :loading="loading" @click="load">重新加载</el-button>
+        </el-alert>
         <el-table :data="teams" size="small" v-loading="loading" max-height="240">
           <el-table-column prop="teamId" label="#" width="80" />
           <el-table-column prop="teamName" label="团队名称" />
@@ -315,6 +326,8 @@ import * as echarts from 'echarts'
 import { InfoFilled, CircleCheckFilled } from '@element-plus/icons-vue'
 
 const loading = ref(false)
+// 加载失败与「没有数据」是两件事，用独立标志驱动告警与重试
+const loadError = ref(false)
 const days = ref(7)
 const stats = ref({ teamCount: 0, scheduleCount: 0, worklogCount: 0 })
 const trend = ref([])
@@ -575,6 +588,7 @@ async function loadAttendanceAnalysis(from, to) {
 }
 async function load() {
   loading.value = true
+  loadError.value = false
   try {
     // 全公司概览：用户/团队/日程/日志/看板聚合指标 + 近 N 天趋势
     const data = await dashboardApi.admin({ days: days.value })
@@ -599,6 +613,7 @@ async function load() {
       const teamPage = await teamApi.page({ page: 1, size: 200 })
       teams.value = teamPage?.records || []
     } catch (e) {
+      loadError.value = true
       console.error('获取团队列表失败:', e)
       teams.value = []
     }
@@ -980,5 +995,10 @@ onMounted(load)
   font-size: 12px;
   line-height: 1.6;
   color: var(--tp-text-muted);
+}
+
+.load-error {
+  margin-bottom: 10px;
+  border-radius: 8px;
 }
 </style>

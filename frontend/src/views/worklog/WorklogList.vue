@@ -105,6 +105,17 @@
       </el-card>
 
       <el-card class="content-card list-card" shadow="never">
+        <!-- 加载失败与「没有数据」要能区分，否则用户会误以为真的没有数据 -->
+        <el-alert
+          v-if="loadError"
+          type="error"
+          :closable="false"
+          show-icon
+          class="load-error"
+          title="数据加载失败：网络或后端异常，当前显示的可能不是最新数据"
+        >
+          <el-button size="small" type="primary" link :loading="loading" @click="load">重新加载</el-button>
+        </el-alert>
         <el-table :data="list" size="small" v-loading="loading" :row-key="(row) => row.worklogId">
           <template #empty>
             <div class="empty-box">
@@ -203,6 +214,8 @@ const viewMode = ref('calendar')
 
 const list = ref([])
 const loading = ref(false)
+// 加载失败与「没有数据」是两件事，用独立标志驱动告警与重试
+const loadError = ref(false)
 const total = ref(0)
 const users = ref([])
 
@@ -287,7 +300,7 @@ async function ensureUserMap() {
 }
 
 async function loadUsers() {
-  if (auth.role !== 'admin') return
+  if (auth.dataScope !== 'ALL') return
   try {
     const page = await userApi.page({ page: 1, size: 200 })
     users.value = page?.records || []
@@ -298,11 +311,12 @@ async function loadUsers() {
 
 async function load() {
   loading.value = true
+  loadError.value = false
   try {
     const params = { order: query.order, page: query.page, size: query.size }
 
-    // 非管理员只能看自己的日志（后端不按角色过滤，这里按角色补条件）
-    if (auth.role !== 'admin') {
+    // 数据范围非全公司时，前端先把条件收窄到本人（后端还有一道 DataScope 兜底）
+    if (auth.dataScope !== 'ALL') {
       const me = auth.user?.userId
       if (me) params.creatorId = me
     } else if (query.creatorId) {
@@ -324,6 +338,7 @@ async function load() {
     total.value = Number(page?.total || 0)
     await ensureUserMap()
   } catch (e) {
+    loadError.value = true
     ElMessage.error('加载失败：' + (e.message || ''))
     list.value = []
     total.value = 0
@@ -522,5 +537,10 @@ onMounted(async () => {
   display: flex;
   justify-content: flex-end;
   margin-top: 12px;
+}
+
+.load-error {
+  margin-bottom: 10px;
+  border-radius: 8px;
 }
 </style>

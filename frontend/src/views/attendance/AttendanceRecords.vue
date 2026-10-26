@@ -56,6 +56,17 @@
         <span>共 <b>{{ total }}</b> 条打卡记录</span>
         <span class="logic-hint">员工支持姓名模糊查询；条件之间是「且」的关系</span>
       </div>
+      <!-- 加载失败与「确实没有数据」要能区分，否则用户会误以为当天没人打卡 -->
+      <el-alert
+        v-if="loadError"
+        type="error"
+        :closable="false"
+        show-icon
+        class="load-error"
+        title="打卡记录加载失败：网络或后端异常，当前显示的可能不是最新数据"
+      >
+        <el-button size="small" type="primary" link :loading="loading" @click="load">重新加载</el-button>
+      </el-alert>
       <el-table v-loading="loading" :data="rows" size="small" empty-text="没有符合条件的打卡记录">
         <el-table-column prop="punchTime" label="打卡时间" width="170">
           <template #default="{ row }">{{ formatDateTime(row.punchTime) }}</template>
@@ -176,6 +187,8 @@ import {
 } from '@/utils/attendance'
 
 const loading = ref(false)
+// 加载失败与「没有数据」是两件事，用独立标志驱动错误提示与重试
+const loadError = ref(false)
 /** 视图模式：日历（默认，看哪天出问题）/ 列表（逐条明细与筛选） */
 const viewMode = ref('calendar')
 const rows = ref([])
@@ -220,6 +233,7 @@ const statusOptions = [
 
 async function load() {
   loading.value = true
+  loadError.value = false
   try {
     const params = { ...query }
     if (Array.isArray(dateRange.value) && dateRange.value.length === 2) {
@@ -235,6 +249,7 @@ async function load() {
   } catch {
     rows.value = []
     total.value = 0
+    loadError.value = true
   } finally {
     loading.value = false
   }
@@ -370,5 +385,10 @@ onMounted(load)
   display: flex;
   justify-content: flex-end;
   margin-top: 14px;
+}
+
+.load-error {
+  margin-bottom: 10px;
+  border-radius: 8px;
 }
 </style>

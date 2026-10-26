@@ -18,6 +18,17 @@
           <el-button type="primary" size="small" @click="addMember">添加成员</el-button>
         </div>
       </div>
+      <!-- 加载失败与「没有数据」要能区分，否则用户会误以为真的没有数据 -->
+      <el-alert
+        v-if="loadError"
+        type="error"
+        :closable="false"
+        show-icon
+        class="load-error"
+        title="数据加载失败：网络或后端异常，当前显示的可能不是最新数据"
+      >
+        <el-button size="small" type="primary" link :loading="loading" @click="load">重新加载</el-button>
+      </el-alert>
       <el-table :data="members" size="small" stripe>
         <el-table-column prop="userId" label="用户编号" width="100" />
         <el-table-column prop="nickname" label="姓名" />
@@ -52,6 +63,8 @@ const route = useRoute()
 const auth = useAuthStore()
 const teamId = Number(route.params.id)
 const loading = ref(false)
+// 加载失败与「没有数据」是两件事，用独立标志驱动告警与重试
+const loadError = ref(false)
 const err = ref('')
 const team = reactive({})
 const members = ref([])
@@ -62,13 +75,16 @@ const isLeader = computed(()=> members.value.some(m=> m.userId===myId && m.teamR
 
 async function load(){
   loading.value = true; err.value = ''
+  loadError.value = false
   try{
     // 详情与成员都直接返回业务对象/数组，不再有 { success, data } 外壳
     const t = await teamApi.detail(teamId)
     Object.assign(team, t || {})
     const list = await teamApi.members(teamId)
     members.value = Array.isArray(list) ? list : []
-  }catch(e){ err.value = String(e) } finally { loading.value = false }
+  }catch(e){
+    loadError.value = true;
+    err.value = String(e) } finally { loading.value = false }
 }
 
 async function addMember(){
@@ -109,4 +125,9 @@ onMounted(load)
 <style scoped>
 .title{ font-weight:600; font-size:18px }
 .sub{ color:#666; margin-top:4px }
+
+.load-error {
+  margin-bottom: 10px;
+  border-radius: 8px;
+}
 </style>

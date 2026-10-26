@@ -78,6 +78,17 @@
         <span class="logic-hint">条件之间是「且」的关系，只填一个也能查；时间段按开始时间筛选</span>
       </div>
 
+      <!-- 加载失败与「没有数据」要能区分，否则用户会误以为真的没有数据 -->
+      <el-alert
+        v-if="loadError"
+        type="error"
+        :closable="false"
+        show-icon
+        class="load-error"
+        title="数据加载失败：网络或后端异常，当前显示的可能不是最新数据"
+      >
+        <el-button size="small" type="primary" link :loading="loading" @click="load">重新加载</el-button>
+      </el-alert>
       <el-table :data="pagedData" v-loading="loading" @sort-change="onSortChange">
         <el-table-column prop="scheduleId" label="编号" width="70" />
         <el-table-column prop="title" label="标题" min-width="160" show-overflow-tooltip />
@@ -264,6 +275,8 @@ import ScheduleCalendar from './ScheduleCalendar.vue'
 const viewMode = ref('calendar')
 
 const { data, setData, loading, total, page, pageSize, pagedData, onSortChange, isColVisible, exportCSV } = useTable({ pageSize: 10, defaultVisible: ['title','status','priority'] })
+// 加载失败与「没有数据」是两件事，用独立标志驱动告警与重试
+const loadError = ref(false)
 
 /** 列表筛选条件（条件之间是「且」，只填一个也能查） */
 const query = reactive({
@@ -362,6 +375,7 @@ function toIsoLocal(date) {
 
 async function load() {
   loading.value = true
+  loadError.value = false
   try {
     // /schedule：筛选交给后端，单页取满 200 条后在前端分页/排序
     const params = { page: 1, size: 200, order: query.order }
@@ -380,6 +394,8 @@ async function load() {
     const resp = await scheduleApi.page(params)
     setData(resp?.records || [])
     page.value = 1
+  } catch {
+    loadError.value = true
   } finally {
     loading.value = false
   }
@@ -647,4 +663,9 @@ onMounted(async () => {
 
 <style scoped>
 .actions { margin-bottom: 12px; display: flex; gap: 8px; }
+
+.load-error {
+  margin-bottom: 10px;
+  border-radius: 8px;
+}
 </style>

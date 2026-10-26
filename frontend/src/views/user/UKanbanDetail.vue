@@ -106,6 +106,17 @@
           </div>
           <!-- 任务表格 -->
           <div class="task-table">
+            <!-- 加载失败与「没有数据」要能区分，否则用户会误以为真的没有数据 -->
+            <el-alert
+              v-if="loadError"
+              type="error"
+              :closable="false"
+              show-icon
+              class="load-error"
+              title="数据加载失败：网络或后端异常，当前显示的可能不是最新数据"
+            >
+              <el-button size="small" type="primary" link :loading="loading" @click="load">重新加载</el-button>
+            </el-alert>
             <el-table 
               :data="pagedItems" 
               class="modern-table" 
@@ -327,6 +338,8 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const loading = ref(false)
+// 加载失败与「没有数据」是两件事，用独立标志驱动告警与重试
+const loadError = ref(false)
 const error = ref('')
 const detail = reactive({ kanban:null, columns:[], items:[] })
 const members = ref([])
@@ -359,6 +372,7 @@ function normalizeCard(card) {
 
 async function load(){
   loading.value = true; error.value=''
+  loadError.value = false
   try{
     const id = route.params.id
     // 详情一次返回 kanban / columns / cards
@@ -378,7 +392,9 @@ async function load(){
     } else {
       members.value = []
     }
-  }catch(e){ error.value=String(e) } finally { loading.value=false }
+  }catch(e){
+    loadError.value = true;
+    error.value=String(e) } finally { loading.value=false }
 }
 onMounted(load)
 
@@ -1029,5 +1045,10 @@ function getActiveTaskCount() {
   .kanban-column {
     min-width: auto;
   }
+}
+
+.load-error {
+  margin-bottom: 10px;
+  border-radius: 8px;
 }
 </style>
