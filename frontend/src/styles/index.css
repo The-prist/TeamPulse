@@ -1,0 +1,248 @@
+/* =====================================================================
+   全局样式 · 淡蓝主题
+
+   设计意图：
+     页面底色用「偏冷的蓝灰」，卡片用「更亮更淡的蓝」，靠明度差制造层次，
+     而不是靠重阴影——阴影一多整个后台会显脏。文字统一用深蓝黑，
+     保证淡蓝底上的对比度（正文对比度约 14:1，远超 WCAG AA 的 4.5:1）。
+
+   改色只需动下面这组变量，组件里的 scoped 样式都引用了它们。
+   ===================================================================== */
+
+:root {
+  /* 底色层次：页面 < 卡片 < 卡片头 */
+  --tp-bg-page: #e1eaf6;
+  --tp-bg-card: #f2f8ff;
+  --tp-bg-card-head: #e2effd;
+  --tp-bg-subtle: #e9f3fe;
+
+  /* 描边：默认 / 强调 */
+  --tp-border: #c4d9f1;
+  --tp-border-strong: #a9c9ec;
+
+  /* 文字：主 / 次 / 弱 */
+  --tp-text: #102a43;
+  --tp-text-muted: #5a7290;
+  --tp-text-faint: #8aa0b8;
+
+  /* 强调色（与 Element Plus 主色一致，便于混用） */
+  --tp-primary: #2f6fd0;
+  --tp-primary-soft: #dbeafe;
+
+  /* 阴影：轻、偏蓝，不用纯黑 */
+  --tp-shadow-card: 0 1px 2px rgba(31, 78, 121, 0.05), 0 10px 24px -18px rgba(31, 78, 121, 0.45);
+  --tp-shadow-hover: 0 2px 6px rgba(31, 78, 121, 0.08), 0 16px 32px -18px rgba(31, 78, 121, 0.5);
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--tp-bg-page);
+  color: var(--tp-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- Element Plus 变量的全局微调 ---------- */
+:root {
+  /* 表格：底色跟随所在卡片，避免出现「蓝卡片里一块白表格」的割裂感 */
+  --el-table-bg-color: transparent;
+  --el-table-tr-bg-color: transparent;
+  --el-table-header-bg-color: rgba(207, 225, 246, 0.55);
+  --el-table-row-hover-bg-color: rgba(169, 201, 236, 0.28);
+  --el-table-border-color: var(--tp-border);
+  --el-table-header-text-color: #24486e;
+  --el-table-text-color: var(--tp-text);
+  /* 卡片与边框 */
+  --el-border-color: var(--tp-border);
+  --el-border-color-light: var(--tp-border);
+  --el-border-color-lighter: #dcebfa;
+  /* 注意：不要覆盖 --el-fill-color-blank。
+     它同时被 .el-card 和 .el-input 使用，改蓝会让输入框和卡片同色、失去可编辑的视觉提示。
+     卡片底色改用下面显式的 .el-card 规则控制。 */
+  --el-text-color-primary: var(--tp-text);
+  --el-text-color-regular: #2c4a68;
+}
+
+/* ---------- 卡片：淡蓝底 + 蓝色描边 + 轻阴影 ---------- */
+.el-card {
+  background-color: var(--tp-bg-card);
+  border: 1px solid var(--tp-border);
+  border-radius: 10px;
+  color: var(--tp-text);
+  box-shadow: var(--tp-shadow-card);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.el-card.is-hover-shadow:hover,
+.el-card.is-always-shadow:hover {
+  box-shadow: var(--tp-shadow-hover);
+  border-color: var(--tp-border-strong);
+}
+
+/* 卡片头：比卡片体略深一档，形成「标题区 / 内容区」的分隔 */
+.el-card__header {
+  background-color: var(--tp-bg-card-head);
+  background-image: linear-gradient(180deg, #e8f2fd 0%, var(--tp-bg-card-head) 100%);
+  border-bottom: 1px solid var(--tp-border);
+  color: var(--tp-text);
+  font-weight: 600;
+}
+
+.el-card__body {
+  color: var(--tp-text);
+}
+
+/* 卡片内的表格不要自带白底与圆角冲突 */
+.el-card .el-table {
+  background-color: transparent;
+}
+.el-card .el-table tr,
+.el-card .el-table th.el-table__cell {
+  background-color: transparent;
+}
+.el-card .el-table--enable-row-hover .el-table__body tr:hover > td.el-table__cell {
+  background-color: var(--el-table-row-hover-bg-color);
+}
+
+/* 描述列表也跟着卡片走 */
+.el-card .el-descriptions__body,
+.el-card .el-descriptions__body .el-descriptions__table {
+  background-color: transparent;
+}
+.el-card .el-descriptions__cell,
+.el-card .el-descriptions__label {
+  background-color: var(--tp-bg-subtle);
+}
+
+/* ---------- 布局：内容区、侧栏、顶栏 ---------- */
+.app-main,
+.main {
+  background: var(--tp-bg-page);
+}
+
+/* 侧栏与顶栏保持白底，与蓝色内容区形成「框」的对比 */
+.el-aside,
+.el-header {
+  background-color: #fbfdff;
+}
+
+/* ---------- 统一卡片栅格与方块（首页 tile） ---------- */
+.app-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.app-tile {
+  height: 140px;
+  border-radius: 10px;
+  transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+}
+.app-tile:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--tp-shadow-hover);
+  border-color: var(--tp-border-strong);
+}
+.app-tile .el-card__body {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.tile-title {
+  font-weight: 600;
+  font-size: 16px;
+  color: var(--tp-text);
+}
+.tile-desc {
+  margin-top: 6px;
+  color: var(--tp-text-muted);
+  overflow: hidden;
+  display: -webkit-box;
+  line-clamp: 2;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* ---------- 统一内容容器 ---------- */
+.content-container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 14px;
+  min-height: calc(100vh - 56px - 56px);
+}
+
+.content-container > .el-card,
+.content-container .el-space > .el-card {
+  border-radius: 10px;
+}
+
+.content-container :is(.el-card__header) {
+  padding: 12px 16px;
+}
+
+.content-container :is(.el-table) {
+  border-radius: 8px;
+  overflow: hidden;
+}
+.content-container :is(.el-table th, .el-table td) {
+  padding: 10px 12px;
+}
+
+/* 表格单元格的换行策略。
+   Element Plus 默认是 word-break: break-all，会把「详情 修改」这种按钮逐字拆成两行；
+   改成只在必要时断行（长 URL / UUID 仍然会断），中文本来就可以按字换行。 */
+.el-table .cell {
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+
+/* 表格里的操作按钮组：一行排开、间距均匀，不换行 */
+.table-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}
+.table-actions .el-button {
+  margin-left: 0;
+}
+
+/* 列表类页面保证页面有足够高度，避免短表格让整页「塌陷」。
+   注意：最小高度给**容器**，不要给卡片。
+   以前写成 `.el-card:first-of-type { min-height: 540px }`，结果任何列表页的
+   第一个卡片都会被硬撑到 540px —— 筛选卡片只有两行条件时，下面会空出一大片。 */
+.content-container.has-list {
+  min-height: 540px;
+}
+.content-container.has-list > .el-space {
+  width: 100%;
+}
+.content-container.has-list > .el-space > .el-card {
+  width: 100%;
+}
+
+/* 仪表盘这类宽内容页取消宽度限制 */
+.content-container.is-wide {
+  max-width: 1440px;
+}
+
+/* ---------- 次要元素：分割线、标签、分页 ---------- */
+.el-divider {
+  border-color: var(--tp-border);
+}
+
+.el-tag {
+  border-radius: 6px;
+}
+
+.el-pagination {
+  --el-pagination-bg-color: transparent;
+  --el-pagination-button-bg-color: transparent;
+}

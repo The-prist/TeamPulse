@@ -1,0 +1,18 @@
+{
+  "name": "teampulse-device-simulator",
+  "version": "1.0.0",
+  "private": true,
+  "description": "TeamPulse 物联网考勤设备模拟器：HTTP 兜底链路（零依赖）+ MQTT 真实链路",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node mqtt-simulator.mjs",
+    "mqtt": "node mqtt-simulator.mjs",
+    "http": "node http-simulator.mjs"
+  },
+  "dependencies": {
+    "mqtt": "^5.10.1"
+  }
+}

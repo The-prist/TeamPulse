@@ -1,0 +1,121 @@
+@startuml TeamPulse-用例图
+' 角色用例图：TeamPulse 团队协作与物联网考勤平台
+' 渲染：java -jar plantuml.jar -charset UTF-8 -tpng usecase.puml
+
+left to right direction
+skinparam dpi 140
+skinparam defaultFontName "Microsoft YaHei"
+skinparam shadowing false
+skinparam backgroundColor #FFFFFF
+skinparam packageStyle rectangle
+skinparam nodesep 22
+skinparam ranksep 55
+skinparam ArrowColor #4A6FA5
+skinparam ArrowThickness 1.1
+skinparam actorStyle awesome
+
+skinparam actor {
+  BackgroundColor #F2F6FC
+  BorderColor #2F5597
+  FontSize 13
+}
+skinparam usecase {
+  BackgroundColor #EAF2FB
+  BorderColor #2F5597
+  FontSize 12
+}
+skinparam package {
+  BackgroundColor #FBFDFF
+  BorderColor #A9C0DE
+  FontColor #2F5597
+  FontSize 13
+}
+skinparam note {
+  BackgroundColor #FFF8E1
+  BorderColor #D6B656
+  FontSize 11
+}
+
+' ================= 参与者 =================
+actor "管理员\n（行政 / HR / 负责人）" as ADMIN
+actor "普通员工" as STAFF
+actor "打卡机\n（ESP32 / 模拟器）" as DEVICE
+actor "定时任务\n（系统调度）" as SCHEDULER
+
+rectangle "TeamPulse 团队协作与物联网考勤平台" {
+
+  package "通用" {
+    usecase "登录获取访问令牌" as UC_LOGIN
+    usecase "维护个人资料" as UC_PROFILE
+  }
+
+  package "协作域" {
+    usecase "用户管理" as UC_USER
+    usecase "团队与成员管理" as UC_TEAM
+    usecase "日程管理" as UC_SCHED
+    usecase "看板协作" as UC_KANBAN
+    usecase "工作日志" as UC_WORKLOG
+    usecase "评论与回复" as UC_COMMENT
+    usecase "敏感词维护" as UC_WORD
+    usecase "统计概览" as UC_OVERVIEW
+  }
+
+  package "考勤域（物联网）" {
+    usecase "设备管理\n注册 / 停用 / 轮换密钥" as UC_DEVICE
+    usecase "配置考勤规则" as UC_RULE
+    usecase "打卡记录与补卡" as UC_RECORD
+    usecase "考勤看板" as UC_BOARD
+    usecase "我的考勤" as UC_MY
+    usecase "上报打卡报文" as UC_PUNCH
+    usecase "校验设备身份与签名" as UC_VERIFY
+    usecase "判定迟到 / 早退" as UC_JUDGE
+    usecase "上报设备心跳" as UC_HEARTBEAT
+    usecase "生成考勤日汇总" as UC_DAILY
+    usecase "设备离线巡检" as UC_PATROL
+  }
+}
+
+' ================= 管理员 =================
+ADMIN --> UC_LOGIN
+ADMIN --> UC_USER
+ADMIN --> UC_TEAM
+ADMIN --> UC_SCHED
+ADMIN --> UC_KANBAN
+ADMIN --> UC_WORD
+ADMIN --> UC_OVERVIEW
+ADMIN --> UC_DEVICE
+ADMIN --> UC_RULE
+ADMIN --> UC_RECORD
+ADMIN --> UC_BOARD
+
+' ================= 普通员工 =================
+STAFF --> UC_LOGIN
+STAFF --> UC_PROFILE
+STAFF --> UC_SCHED
+STAFF --> UC_KANBAN
+STAFF --> UC_WORKLOG
+STAFF --> UC_COMMENT
+STAFF --> UC_OVERVIEW
+STAFF --> UC_MY
+
+' ================= 打卡机 =================
+UC_PUNCH --> UC_VERIFY : <<include>>
+UC_PUNCH --> UC_JUDGE : <<include>>
+DEVICE --> UC_PUNCH
+DEVICE --> UC_HEARTBEAT
+
+' ================= 定时任务 =================
+SCHEDULER --> UC_DAILY
+SCHEDULER --> UC_PATROL
+
+note bottom of UC_PUNCH
+  设备侧：UART 读卡 → 拼 JSON
+  → HMAC 签名 → MQTT / HTTP 上报
+end note
+
+note right of UC_JUDGE
+  签到只看迟到、签退只看早退；
+  迟到分钟数从规定上班时间算起
+end note
+
+@enduml

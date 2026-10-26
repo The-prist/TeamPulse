@@ -1,0 +1,29 @@
+# 开发环境：连本机 MySQL/Redis/MQTT，开启 SQL 日志与接口文档
+spring:
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:teampulse}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true
+
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+logging:
+  level:
+    com.teampulse: DEBUG
+    org.springframework.integration.mqtt: DEBUG
+    org.eclipse.paho: INFO
+
+teampulse:
+  cors:
+    allowed-origins: http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173
+
+# 本地开发通常不起 Redis，这里关掉它的健康探测，
+# 否则 /actuator/health 会因 redis=DOWN 整体返回 503（业务接口其实不受影响）。
+# 生产 profile 不关，保持严格探测。
+management:
+  health:
+    redis:
+      enabled: false
+  endpoint:
+    health:
+      show-details: always

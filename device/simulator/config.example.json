@@ -1,0 +1,13 @@
+{
+  "brokerUrl": "mqtt://localhost:1883",
+  "username": "",
+  "password": "",
+  "deviceSn": "TP-ESP32-DEMO",
+  "deviceSecret": "",
+  "firmwareVersion": "1.0.0",
+  "employeeNos": ["E1000", "E1001", "E1002", "E1003"],
+  "punchIntervalSeconds": 10,
+  "heartbeatIntervalSeconds": 60,
+  "matchScore": 92,
+  "clientIdPrefix": "sim-esp32"
+}

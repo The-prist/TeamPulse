@@ -1,0 +1,47 @@
+# ---- 构建产物 ----
+target/
+dist/
+node_modules/
+*.jar
+*.war
+
+# ---- 本地运行产物 ----
+.run-logs/
+backend/run.log
+frontend/vite-dev.log
+
+# ---- 本地工具链（体积大，绝不入库）----
+.toolchain/
+# 权限修复工具留下的 ACL 备份与报告
+.dsh-acl-recovery/
+
+# ---- 敏感配置 ----
+.env
+.env.local
+.env.*.local
+deploy/certs/
+deploy/mosquitto/passwd
+deploy/backups/
+# 固件真实密钥：只提交 secrets.h.example，真实的 secrets.h 永不入库
+secrets.h
+# 设备模拟器的真实配置（含 deviceSecret），只提交 config.example.json
+device/simulator/config.json
+
+# ---- 日志 ----
+logs/
+*.log
+
+# ---- IDE ----
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# ---- 旧版代码存档 ----
+_legacy/
+# 旧后端目录：已被 backend/ 取代，仅因 Windows 文件锁暂未删除，不应入库
+houduan/
+
+# ---- Windows ----
+Thumbs.db
+desktop.ini

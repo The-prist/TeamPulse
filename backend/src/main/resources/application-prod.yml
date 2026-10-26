@@ -1,0 +1,46 @@
+# 生产环境：所有敏感配置由环境变量注入，日志落文件，关闭 SQL 打印
+spring:
+  datasource:
+    hikari:
+      maximum-pool-size: 15
+  flyway:
+    # 生产环境禁止自动基线（防止误连到已有库时静默跳过脚本）
+    baseline-on-migrate: false
+
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+
+logging:
+  level:
+    root: INFO
+    com.teampulse: INFO
+  file:
+    name: ${LOG_PATH:/app/logs}/teampulse.log
+  logback:
+    rollingpolicy:
+      max-file-size: 50MB
+      max-history: 14
+      total-size-cap: 1GB
+
+management:
+  endpoint:
+    health:
+      show-details: never
+
+springdoc:
+  api-docs:
+    enabled: ${TPP_OPENAPI_ENABLED:false}
+  swagger-ui:
+    enabled: ${TPP_OPENAPI_ENABLED:false}
+
+teampulse:
+  cors:
+    # 同源部署（Nginx 反代前后端）时无需放行任何跨域来源
+    allowed-origins: ${TPP_CORS_ORIGINS:}
+  jwt:
+    # 生产环境必须显式注入。刻意不给默认值：漏配 TPP_JWT_SECRET 时，
+    # JwtTokenProvider 会因密钥不足 32 字节直接启动失败（fail-closed），
+    # 而不是静默回退到 application.yml 里的开发密钥——否则任何拿到
+    # 仓库的人都能伪造 JWT 冒充管理员。
+    secret: ${TPP_JWT_SECRET:}

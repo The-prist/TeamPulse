@@ -1,0 +1,242 @@
+@startuml TeamPulse-ER图
+' 实体关系图：TeamPulse（14 张表）
+' 说明：为保持可读性，只列出主键、唯一键、关联键与核心业务字段
+' 渲染：java -jar plantuml.jar -charset UTF-8 -tpng er.puml
+
+hide circle
+hide empty members
+skinparam dpi 140
+skinparam defaultFontName "Microsoft YaHei"
+skinparam shadowing false
+skinparam backgroundColor #FFFFFF
+skinparam linetype ortho
+skinparam nodesep 45
+skinparam ranksep 55
+
+skinparam entity {
+  BackgroundColor #FFFFFF
+  BorderColor #2F5597
+  FontColor #1F2937
+  FontSize 11
+  HeaderBackgroundColor #E8F0FA
+}
+skinparam ArrowColor #4A6FA5
+skinparam ArrowFontSize 11
+
+' ===================== 协作域 =====================
+package "协作域" {
+
+  entity "user 用户" as USER {
+    * user_id : BIGINT <<PK>>
+    --
+    username : VARCHAR(50) <<UK>>
+    password : VARCHAR(100)
+    nickname : VARCHAR(50)
+    email : VARCHAR(100) <<UK>>
+    phone : VARCHAR(20)
+    employee_no : VARCHAR(32) <<UK>>
+    role : VARCHAR(20)
+    status : VARCHAR(20)
+    deleted : TINYINT
+  }
+
+  entity "team 团队" as TEAM {
+    * team_id : BIGINT <<PK>>
+    --
+    team_name : VARCHAR(100) <<UK>>
+    description : TEXT
+    creator_id : BIGINT <<FK>>
+    deleted : TINYINT
+  }
+
+  entity "team_member 团队成员" as TEAM_MEMBER {
+    * id : BIGINT <<PK>>
+    --
+    team_id : BIGINT <<FK>>
+    user_id : BIGINT <<FK>>
+    team_role : VARCHAR(20)
+    status : VARCHAR(20)
+    join_time : DATETIME
+  }
+
+  entity "schedule 日程" as SCHEDULE {
+    * schedule_id : BIGINT <<PK>>
+    --
+    title : VARCHAR(200)
+    content : TEXT
+    start_time : DATETIME
+    end_time : DATETIME
+    location : VARCHAR(200)
+    status : VARCHAR(20)
+    priority : VARCHAR(20)
+    creator_id : BIGINT <<FK>>
+    team_id : BIGINT <<FK>>
+    remind_time : DATETIME
+    deleted : TINYINT
+  }
+
+  entity "worklog 工作日志" as WORKLOG {
+    * worklog_id : BIGINT <<PK>>
+    --
+    title : VARCHAR(200)
+    content : TEXT
+    log_date : DATE
+    creator_id : BIGINT <<FK>>
+    related_schedule_id : BIGINT <<FK>>
+    related_team_id : BIGINT <<FK>>
+    deleted : TINYINT
+  }
+
+  entity "kanban 看板" as KANBAN {
+    * kanban_id : BIGINT <<PK>>
+    --
+    kanban_name : VARCHAR(100)
+    description : TEXT
+    team_id : BIGINT <<FK>>
+    creator_id : BIGINT <<FK>>
+    deleted : TINYINT
+  }
+
+  entity "kanban_column 看板列" as KANBAN_COLUMN {
+    * column_id : BIGINT <<PK>>
+    --
+    kanban_id : BIGINT <<FK>>
+    column_name : VARCHAR(50)
+    sort_order : INT
+  }
+
+  entity "kanban_item 看板卡片" as KANBAN_ITEM {
+    * item_id : BIGINT <<PK>>
+    --
+    kanban_id : BIGINT <<FK>>
+    schedule_id : BIGINT <<FK>>
+    column_id : BIGINT <<FK>>
+    assignee_id : BIGINT <<FK>>
+    assign_time : DATETIME
+    sort_order : INT
+  }
+
+  entity "comment 评论" as COMMENT {
+    * comment_id : BIGINT <<PK>>
+    --
+    related_type : VARCHAR(20)
+    related_id : BIGINT
+    creator_id : BIGINT <<FK>>
+    content : TEXT
+    original_content : TEXT
+    reply_to : BIGINT <<FK>>
+    deleted : TINYINT
+  }
+
+  entity "sensitive_word 敏感词" as SENSITIVE_WORD {
+    * word_id : BIGINT <<PK>>
+    --
+    word : VARCHAR(100) <<UK>>
+    replacement : VARCHAR(100)
+    status : VARCHAR(20)
+    creator_id : BIGINT
+  }
+}
+
+' ===================== 考勤域 =====================
+package "考勤域（物联网）" {
+
+  entity "iot_device 打卡设备" as IOT_DEVICE {
+    * id : BIGINT <<PK>>
+    --
+    device_sn : VARCHAR(64) <<UK>>
+    device_name : VARCHAR(100)
+    location : VARCHAR(120)
+    secret : VARCHAR(64)
+    status : VARCHAR(20)
+    firmware_version : VARCHAR(40)
+    last_heartbeat : DATETIME
+    deleted : TINYINT
+  }
+
+  entity "attendance_rule 考勤规则" as ATT_RULE {
+    * id : BIGINT <<PK>>
+    --
+    rule_name : VARCHAR(100) <<UK>>
+    work_start : TIME
+    work_end : TIME
+    late_grace_minutes : INT
+    early_grace_minutes : INT
+    work_days : VARCHAR(20)
+    enabled : TINYINT
+  }
+
+  entity "attendance_record 打卡记录" as ATT_RECORD {
+    * id : BIGINT <<PK>>
+    --
+    user_id : BIGINT <<FK>>
+    employee_no : VARCHAR(32)
+    device_sn : VARCHAR(64) <<FK>>
+    punch_type : VARCHAR(16)
+    punch_time : DATETIME
+    work_date : DATE
+    status : VARCHAR(24)
+    late_minutes : INT
+    early_leave_minutes : INT
+    source : VARCHAR(16)
+    message_id : VARCHAR(64) <<UK>>
+    sign_verified : TINYINT
+    raw_payload : TEXT
+  }
+
+  entity "attendance_daily 考勤日汇总" as ATT_DAILY {
+    * id : BIGINT <<PK>>
+    --
+    user_id : BIGINT <<FK>>
+    employee_no : VARCHAR(32)
+    work_date : DATE
+    first_check_in : DATETIME
+    last_check_out : DATETIME
+    work_minutes : INT
+    late_minutes : INT
+    early_leave_minutes : INT
+    attendance_status : VARCHAR(24)
+  }
+}
+
+' ===================== 关系 =====================
+' 说明：本项目大部分关联不建物理外键（由业务层保证），下图表示「逻辑关联」
+
+USER ||--o{ TEAM : "创建"
+USER ||--o{ TEAM_MEMBER : "加入"
+TEAM ||--o{ TEAM_MEMBER : "包含"
+
+USER ||--o{ SCHEDULE : "创建"
+TEAM ||--o{ SCHEDULE : "归属(可空)"
+
+SCHEDULE ||--o{ WORKLOG : "关联(可空)"
+TEAM ||--o{ WORKLOG : "归属(可空)"
+USER ||--o{ WORKLOG : "记录"
+
+TEAM ||--o{ KANBAN : "归属"
+KANBAN ||--o{ KANBAN_COLUMN : "包含列"
+KANBAN ||--o{ KANBAN_ITEM : "包含卡片"
+KANBAN_COLUMN ||--o{ KANBAN_ITEM : "卡片所在列"
+SCHEDULE ||--o| KANBAN_ITEM : "被投影为卡片"
+USER ||--o{ KANBAN_ITEM : "承接(可空)"
+
+USER ||--o{ COMMENT : "发表"
+COMMENT ||--o{ COMMENT : "回复"
+
+USER ||--o{ ATT_RECORD : "打卡(工号匹配)"
+IOT_DEVICE ||--o{ ATT_RECORD : "上报"
+USER ||--o{ ATT_DAILY : "汇总"
+IOT_DEVICE ||--o{ ATT_DAILY : "统计口径"
+ATT_RECORD ..> ATT_DAILY : "聚合生成"
+
+note bottom of ATT_RULE
+  全局单条生效，不与其他表显式关联
+end note
+
+note right of USER
+  employee_no 是打卡机上报的工号，
+  与 attendance_record.employee_no 逻辑关联；
+  它也是连接「协作域」与「考勤域」的唯一纽带
+end note
+
+@enduml

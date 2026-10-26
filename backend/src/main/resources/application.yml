@@ -1,0 +1,134 @@
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+  compression:
+    enabled: true
+    mime-types: application/json,text/html,text/css,application/javascript
+  tomcat:
+    threads:
+      max: 60
+      min-spare: 10
+    max-connections: 2000
+
+spring:
+  application:
+    name: teampulse-backend
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:teampulse}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true&createDatabaseIfNotExist=true
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      # 4C4G 机器：连接池不宜过大，10~15 足够支撑演示与企业内网使用
+      maximum-pool-size: 12
+      minimum-idle: 4
+      connection-timeout: 10000
+      idle-timeout: 300000
+      max-lifetime: 1200000
+      pool-name: TeamPulsePool
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+    encoding: UTF-8
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: 0
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 2
+
+  jackson:
+    time-zone: Asia/Shanghai
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+      fail-on-empty-beans: false
+    deserialization:
+      fail-on-unknown-properties: false
+
+# ---------- MyBatis-Plus ----------
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    # 生产建议关闭 SQL 日志，dev profile 中单独开启
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# ---------- 业务配置 ----------
+teampulse:
+  jwt:
+    secret: ${TPP_JWT_SECRET:teampulse-dev-only-secret-change-me-0123456789}
+    access-token-ttl: PT12H
+    issuer: teampulse
+  cors:
+    allowed-origins: ${TPP_CORS_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+  mqtt:
+    enabled: ${MQTT_ENABLED:true}
+    broker-url: tcp://${MQTT_HOST:localhost}:${MQTT_PORT:1883}
+    client-id: ${MQTT_CLIENT_ID:teampulse-backend-1}
+    username: ${MQTT_USERNAME:}
+    password: ${MQTT_PASSWORD:}
+    topic-checkin: ${MQTT_TOPIC_CHECKIN:attendance/checkin}
+    topic-heartbeat: ${MQTT_TOPIC_HEARTBEAT:attendance/heartbeat}
+    topic-ack: ${MQTT_TOPIC_ACK:attendance/ack}
+    qos: 1
+    keep-alive-seconds: 30
+    completion-timeout-ms: 5000
+    clean-session: false
+    connection-timeout-seconds: 10
+  attendance:
+    # 是否校验设备报文 HMAC 签名（生产必须为 true）
+    sign-enabled: ${TPP_ATTENDANCE_SIGN_ENABLED:true}
+    # 允许的设备时钟偏差（秒），超出视为时钟漂移并拒收
+    clock-drift-seconds: 300
+    # 报文 nonce 去重窗口
+    nonce-ttl: PT10M
+    # 心跳超时判定设备离线
+    offline-threshold: PT2M
+    # 每日汇总任务执行时间（cron）
+    daily-summary-cron: "0 5 0 * * ?"
+  bootstrap:
+    # 首次启动自动创建管理员账号与示例团队
+    enabled: ${TPP_BOOTSTRAP_ENABLED:true}
+    admin-username: ${TPP_ADMIN_USERNAME:admin}
+    admin-password: ${TPP_ADMIN_PASSWORD:admin123}
+    admin-employee-no: ${TPP_ADMIN_EMPLOYEE_NO:E1000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when_authorized
+  health:
+    redis:
+      enabled: true
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
