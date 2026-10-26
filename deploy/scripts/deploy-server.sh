@@ -19,9 +19,15 @@ echo "=== [1/5] 代码 ==="
 mkdir -p /opt
 if [ -d "$APP_DIR/.git" ]; then
     cd "$APP_DIR"
-    git fetch --quiet origin
-    git reset --hard --quiet origin/main
-    echo "已更新到 $(git rev-parse --short HEAD) $(git log -1 --format='%s')"
+    # 国内机器访问 GitHub 常常间歇性失败，拉不到就用现有代码继续（不中断部署）
+    if git fetch --quiet origin 2>/dev/null && git reset --hard --quiet origin/main 2>/dev/null; then
+        echo "已更新到 $(git rev-parse --short HEAD) $(git log -1 --format='%s')"
+    else
+        echo "⚠ GitHub 不可达，跳过代码更新，继续用当前 $(git rev-parse --short HEAD)"
+        echo "  如需推送新代码：在开发机执行 .\\scripts\\deploy-from-local.ps1"
+    fi
+elif [ -f "./docker-compose.yml" ]; then
+    echo "当前目录已有代码（由 deploy-from-local.ps1 推送），跳过克隆"
 else
     git clone --quiet "$REPO" "$APP_DIR"
     cd "$APP_DIR"
