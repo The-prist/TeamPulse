@@ -1,21 +1,30 @@
 # TeamPulse · 团队协作与物联网考勤平台
 
-> 一套账号体系，同时覆盖「团队协作」与「硬件打卡考勤」。
-> ESP32 打卡机通过 MQTT 上报，服务端实时判定迟到/早退并刷新考勤看板。
+> 一套账号与权限体系，同时覆盖「团队协作」与「硬件打卡考勤」。
+> ESP32 打卡机经 MQTT 上报，服务端验签、防重放、幂等判定后实时刷新考勤看板；
+> 所有管理动作留痕可查。
+
+![状态](https://img.shields.io/badge/阶段-核心功能完成-blue)
+![后端](https://img.shields.io/badge/后端-Java%2017%20%2F%20Spring%20Boot%203.2-6db33f)
+![前端](https://img.shields.io/badge/前端-Vue%203%20%2F%20Vite%207-42b883)
+![数据库](https://img.shields.io/badge/数据库-MySQL%208.4-00758f)
+![权限](https://img.shields.io/badge/RBAC-6%20角色%20%C2%B7%2022%20权限点-8b5cf6)
 
 ---
 
 ## 1. 它解决什么问题
 
-中小企业常见的状态是：协作工具（日程/看板/日志）和考勤机是两套互不相通的系统，
+中小企业常见状态是：协作工具（日程/看板/日志）和考勤机是两套互不相通的系统，
 人员名单要维护两遍，考勤数据只能月底从机器里导表格。
 
-TeamPulse 把这些收在同一个平台里：
+TeamPulse 把这些收进同一个平台、同一份人员数据：
 
 | 域 | 能力 |
 |---|---|
-| 协作域 | 用户与团队管理、日程、看板（拖拽改状态并反向同步日程）、工作日志、评论（含敏感词过滤） |
-| 考勤域 | 打卡设备注册与密钥轮换、ESP32/MQTT 打卡接入、迟到早退自动判定、实时考勤看板、日汇总 |
+| 协作域 | 用户与团队管理、日程（含跨天日历）、看板（拖拽改状态并反向同步日程）、工作日志、评论（两级回复 + 敏感词过滤） |
+| 考勤域 | 设备注册与密钥轮换、ESP32/MQTT 打卡接入、验签与防重放、迟到早退判定、日汇总、缺勤补齐、考勤看板与打卡分析 |
+| 权限域 | 6 个角色、22 个权限点、部门树、数据范围（全公司/本部门/仅本人）、菜单与按钮按权限渲染 |
+| 治理域 | 补卡审批流（申请 → 审批 → 生成记录）、操作审计日志（谁改了什么、成没成、对应哪次请求） |
 
 ---
 
@@ -23,11 +32,13 @@ TeamPulse 把这些收在同一个平台里：
 
 | 层 | 技术 |
 |---|---|
-| 后端 | Spring Boot 3.2.4 · Java 17 · MyBatis-Plus 3.5.7 · MySQL 8 · Redis 7 · Flyway |
-| 安全 | Spring Security 6 + JWT（jjwt 0.12）· BCrypt（兼容历史明文自动升级） |
+| 后端 | Spring Boot 3.2.4 · Java 17 · MyBatis-Plus 3.5.7 · MySQL 8.4 · Redis 7 · Flyway 9 |
+| 安全与权限 | Spring Security 6 + JWT（jjwt 0.12）· BCrypt（兼容历史明文自动升级）· RBAC 权限点 + 数据范围 |
+| 治理 | Spring AOP（审计切面）· Micrometer + Prometheus · Logback（带 traceId 的滚动日志） |
 | 物联网 | Spring Integration MQTT 6.2 + Eclipse Paho · Mosquitto · ESP32（Arduino C++） |
-| 前端 | Vue 3 · Vite 7 · Element Plus · Pinia · ECharts · Axios |
+| 前端 | Vue 3 · Vite 7 · Element Plus 2.14 · Pinia · ECharts · Axios |
 | 部署 | Docker Compose（5 容器）· Nginx 同源反代 · 单台 4C4G 云服务器 |
+| 工程 | GitHub Actions（后端测试 + 前端构建 + 契约检查）· 单元测试（JUnit 5） |
 
 ---
 
@@ -35,8 +46,8 @@ TeamPulse 把这些收在同一个平台里：
 
 ```
 浏览器 ──► Nginx ──/api/──► backend (Spring Boot)
-                        ├── MySQL    业务数据
-                        ├── Redis    nonce 防重放
+                        ├── MySQL    业务数据（21 张表，Flyway V1~V6）
+                        ├── Redis    nonce 防重放（不可用时降级内存）
                         └── Mosquitto ◄── ESP32 打卡机 (MQTT)
 ```
 
@@ -45,20 +56,53 @@ TeamPulse 把这些收在同一个平台里：
 ```
 指纹模块 --UART--> ESP32 --拼 JSON + HMAC 签名--> MQTT attendance/checkin
     --> Spring Integration 入站适配器
-    --> 校验(设备/时钟漂移/签名/幂等/nonce)
+    --> 校验(设备 / 时钟漂移 ±300s / 签名 / 三层幂等 / nonce 10 分钟去重)
     --> 判定签到签退 + 迟到早退
     --> 写 attendance_record + 重算 attendance_daily
     --> 回执 attendance/ack
 前端考勤看板每 5 秒轮询 /api/v1/attendance/recent
 ```
 
+一次管理动作的链路（审计）：
+
+```
+PUT /api/v1/attendance/rule  ──► RequestObservabilityFilter（生成 traceId，写 MDC）
+    ──► AuditLogAspect（@Audited 拦截）──► audit_log（操作人快照/动作/结果/耗时/IP/traceId）
+    ──► Prometheus 指标（teampulse_api_requests_total 等）
+    ──► logs/teampulse.log（每条日志带同一个 traceId）
+```
+
 ---
 
-## 4. 快速开始
+## 4. 角色与权限
 
-### 4.1 方式一：Docker Compose（推荐，一条命令）
+6 个角色、22 个权限点（`module:action`），数据范围挂在角色上，由 `DataScopeService` 下推到 SQL。
+完整矩阵见 [`docs/TeamPulse_需求规格说明书.docx`](docs/TeamPulse_需求规格说明书.docx) 第 4 章。
 
-前置：一台装了 Docker 与 Docker Compose v2 的 Linux 服务器（4C4G 起）。
+| 角色 | 数据范围 | 权限数 | 职责边界 |
+|---|---|---|---|
+| `sysadmin` 系统管理员 | ALL | 22 | 账号、权限、部门、设备、系统配置；不做业务审批决策 |
+| `hr` 人事专员 | ALL | 12 | 考勤规则、补卡审批、考勤报表；员工档案只读 |
+| `manager` 部门经理 | DEPT | 14 | 本部门团队/日程/看板/日志 + 考勤异常审批 |
+| `leader` 团队负责人 | DEPT | 8 | 本部门协作与日程管理；无审批权 |
+| `employee` 普通员工 | SELF | 6 | 自己的日程/看板/日志/考勤；可提交补卡申请 |
+| `auditor` 审计专员 | ALL | 10 | 全公司只读 + 审计日志查询 |
+
+实测差异（同一批数据，不同账号）：
+
+| 账号 | 角色 | 可见日程 | 可见打卡 |
+|---|---|---|---|
+| `admin` | 系统管理员 | 11 条 | 84 条 |
+| `zhangsan` | 部门经理 | 4 条（仅研发部） | 56 条（研发部 4 人） |
+| `lisi` | 普通员工 | 1 条（仅自己） | 14 条（仅自己） |
+
+---
+
+## 5. 快速开始
+
+### 5.1 方式一：Docker Compose（推荐）
+
+前置：一台装了 Docker 与 Compose v2 的 Linux 服务器（4C4G 起）。
 
 ```bash
 git clone <your-repo> teampulse && cd teampulse
@@ -81,9 +125,9 @@ docker compose logs -f backend
 
 首次启动会自动完成：
 
-1. Flyway 执行 `V1/V2/V3` 建表并写入默认考勤规则与敏感词
-2. 创建初始管理员（账号密码见 `.env` 的 `TPP_ADMIN_PASSWORD`）
-3. 创建一台演示打卡设备，并在**后端日志里打印它的序列号与密钥**——把它填进模拟器即可跑通链路
+1. Flyway 执行 `V1`~`V6`：建表 + 字典种子 + RBAC/部门/审批 + 审计表
+2. 创建初始管理员（密码见 `.env` 的 `TPP_ADMIN_PASSWORD`）
+3. 创建一台演示打卡设备，并在**后端日志里打印序列号与密钥**——填进模拟器即可跑通链路
 
 ```bash
 docker compose logs backend | grep -A3 "演示打卡设备"
@@ -92,9 +136,12 @@ docker compose logs backend | grep -A3 "演示打卡设备"
 访问 `http://<服务器IP>/`，用管理员登录。
 
 > 云服务器安全组需放行：`80`（Web）、`1883`（MQTT，供打卡机接入）。
-> `3306` 已在 compose 中绑定 127.0.0.1，公网不可直连。
+> `3306` 已在 compose 中绑定 `127.0.0.1`，公网不可直连。
 
-### 4.2 方式二：本地开发（看页面原型用这个）
+> ⚠️ **诚实说明**：这套 compose 与镜像构建**尚未在真实服务器上跑通过**（本地无 Docker 环境）。
+> 首次在服务器上部署时，预计需要处理 1~2 轮构建/依赖问题。详见第 12 章「项目状态」。
+
+### 5.2 方式二：本地开发（看页面原型用这个）
 
 前置：JDK 17、Maven 3.9、Node 20+、MySQL 8。Redis 与 MQTT 都是**可选**的
 （缺 Redis 时 nonce 去重自动降级为内存实现；缺 MQTT 时后端告警重试，Web 接口不受影响）。
@@ -109,11 +156,9 @@ docker compose logs backend | grep -A3 "演示打卡设备"
 
 ```bash
 # macOS / Linux
-DB_PASSWORD=你的密码 ./scripts/run-local.sh    # 必须传密码（脚本无默认值）
+DB_PASSWORD=你的密码 ./scripts/run-local.sh
 ./scripts/run-local.sh --stop
 ```
-
-脚本会自动找工具链、释放端口、启动后端（首次自动建库建表）与前端开发服务器，并打印访问地址。
 
 **手动启动**：
 
@@ -124,163 +169,128 @@ DB_PASSWORD=你的密码 MQTT_ENABLED=false mvn spring-boot:run
 
 # 前端（另开终端）
 cd frontend
-npm install
-npm run dev          # http://localhost:5173
+pnpm install
+pnpm dev          # http://localhost:5173
 ```
 
-启动后访问 `http://127.0.0.1:5173/`，账号 `admin / admin123`。
-详细步骤、常见问题与已验证结果见 **[docs/如何运行页面原型.md](docs/如何运行页面原型.md)**。
+本地演示账号（迁移脚本会带上，仅用于开发）：
 
-本地没有 Mosquitto 时，可在 `application-dev.yml` 或环境变量里关闭 MQTT：
-
-```bash
-MQTT_ENABLED=false
-```
-
-Web 接口照常可用，打卡链路改为走 HTTP 兜底通道 `/iot/v1/punch`（同样需要 HMAC 签名）。
+| 账号 | 密码 | 角色 | 看点 |
+|---|---|---|---|
+| `admin` | `admin123` | 系统管理员 | 全部菜单、审计日志、设备管理 |
+| `zhangsan` | `123456` | 部门经理 | 数据范围收窄、补卡审批 |
+| `lisi` | `123456` | 普通员工 | 只见本人数据、提交补卡 |
+| `sunqi` | `123456` | 人事专员 | 考勤规则 + 审批 |
+| `zhaoliu` | `123456` | 审计专员 | 全公司只读 + 审计日志 |
 
 ---
 
-## 5. 设备接入
+## 6. 设备接入
 
-### 5.1 用模拟器验证（不需要硬件）
-
-```bash
-# 零依赖，只用 Node 内置能力，走 HTTP 兜底通道
-node device/simulator/http-simulator.mjs \
-  --base http://localhost:8080 \
-  --sn TP-ESP32-DEMO \
-  --secret <后端日志里打印的密钥> \
-  --employee E1000 \
-  --loop
-```
-
-走真实 MQTT 链路：
+### 6.1 用模拟器验证（不需要硬件）
 
 ```bash
 cd device/simulator
-npm install
-npm start -- --broker mqtt://<服务器IP>:1883 --sn TP-ESP32-DEMO --secret <密钥>
+node http-simulator.mjs --server http://127.0.0.1:8080 \
+  --sn <设备序列号> --secret <设备密钥> --employee-no E1001
 ```
 
-### 5.2 真机固件
+### 6.2 真机固件
 
-固件在 `device/esp32/attendance_node/attendance_node.ino`，接线、依赖库、烧录步骤见
-`device/esp32/README.md`。
+`device/esp32/attendance_node/attendance_node.ino`（单文件约 1 100 行）：
+UART 读卡 → 组 JSON → `mbedtls` 计算 HMAC → PubSubClient 发布；`millis()` 非阻塞状态机 + WiFi 断线重连。
 
-需要修改固件顶部的配置区：WiFi、MQTT 地址与账号、`deviceSn`、`deviceSecret`。
+### 6.3 报文契约
 
-### 5.3 报文契约
-
-打卡上行（`attendance/checkin`）：
-
-```json
-{
-  "deviceSn": "TP-ESP32-DEMO",
-  "employeeNo": "E1000",
-  "punchTime": "2025-06-01 09:03:12",
-  "punchType": "AUTO",
-  "nonce": "a1b2c3d4e5f6",
-  "sign": "3f9c...(HMAC-SHA256 小写hex)"
-}
-```
-
-- 签名内容：`deviceSn|employeeNo|punchTime|nonce`
-- 服务端校验：设备已注册 → 时钟漂移 ≤300s → HMAC 验签 → 幂等 → nonce 去重
-- 回执（`attendance/ack`）：`code=0` 成功；`6xxxx` 为设备侧永久错误（不要重试）；`5xxxx` 可重试
-
----
-
-## 6. 关键配置
-
-所有敏感配置走环境变量，详见 `.env.example`。
-
-| 变量 | 说明 |
-|---|---|
-| `MYSQL_ROOT_PASSWORD` | MySQL root 密码 |
-| `REDIS_PASSWORD` | Redis 密码 |
-| `MQTT_USERNAME` / `MQTT_PASSWORD` | MQTT 账号（固件里要填同样的值） |
-| `JWT_SECRET` | JWT 签名密钥，**必须 ≥32 字节**，否则应用启动即失败 |
-| `TPP_ADMIN_PASSWORD` | 初始管理员密码（仅首次启动生效） |
-| `TPP_OPENAPI_ENABLED` | 是否开启 Swagger（生产建议 false） |
+| 通道 | 主题 / 路径 | 待签名串 |
+|---|---|---|
+| MQTT 打卡 | `attendance/checkin` | `deviceSn\|employeeNo\|punchTime\|nonce` |
+| MQTT 心跳 | `attendance/heartbeat` | `deviceSn\|nonce` |
+| HTTP 兜底 | `POST /iot/v1/punch` | 同上 |
 
 ---
 
 ## 7. 安全与密钥管理
-
-这个仓库是公开的，所以代码里**不含任何真实凭据**。真实值只存在于三个不会进入 Git 的地方：
-
-| 位置 | 放什么 | 是否入库 |
-|---|---|---|
-| 环境变量（`.env` 或 `setx`） | 数据库 / Redis / MQTT 密码、JWT 密钥 | `.env` 已被忽略 |
-| `device/esp32/attendance_node/secrets.h` | WiFi 账号、设备 `DEVICE_SECRET` | 已忽略，模板见 `secrets.h.example` |
-| `device/simulator/config.json` | 模拟器用的设备密钥 | 已忽略，模板见 `config.example.json` |
-
-配置文件里的敏感项一律写成 `${VAR:默认值}` 形式，例如 `application.yml`：
-
-```yaml
-spring:
-  datasource:
-    password: ${DB_PASSWORD:root}
-```
-
-固件则是「有则覆盖、无则占位」，保证别人 clone 下来仍能编译：
-
-```cpp
-#if __has_include("secrets.h")
-#include "secrets.h"          // 本机真实值
-#endif
-#ifndef DEVICE_SECRET
-#define DEVICE_SECRET "…"     // 占位值，验签必然失败
-#endif
-```
 
 ### 7.1 设备密钥怎么流转
 
 1. 后端首次启动，`BootstrapDataInitializer` 用 `SecureRandom` 生成 32 字节随机数，
    转成 64 位十六进制写入 `iot_device.secret`，并打印到启动日志
 2. 固件把同一份密钥填进 `secrets.h` 的 `DEVICE_SECRET`
-3. 每次打卡，固件对 `deviceSn|employeeNo|punchTime|nonce` 做 **HMAC-SHA256**，
-   签名随报文一起发出
+3. 每次打卡，固件对规范串做 **HMAC-SHA256**，签名随报文一起发出
 4. 服务端用库里同一份密钥重算并比对，不一致返回 `60003`
-5. `nonce` 进 Redis 去重窗口（默认 10 分钟），重复即拒绝，**防止报文重放**
+5. `nonce` 进 Redis 去重窗口（默认 10 分钟），重复即拒绝；时间偏差超过 ±300 秒拒绝
 
 因此密钥泄露等于别人可以伪造打卡数据——这也是它必须只留在本机的原因。
 
 ### 7.2 生产环境 fail-closed
 
-宁可启动失败，也不要带着默认密钥上线：
-
 | 位置 | 行为 |
 |---|---|
-| `application-prod.yml`：`teampulse.jwt.secret: ${TPP_JWT_SECRET:}` | 漏配时密钥不足 32 字节，`JwtTokenProvider` 直接抛异常拒绝启动，**不会静默回退**到 `application.yml` 里的开发密钥（否则拿到仓库的人就能伪造管理员 token） |
-| `docker-compose.yml`：`TPP_ADMIN_PASSWORD: "${TPP_ADMIN_PASSWORD:?...}"` | 漏配时 compose 直接报错，**不会**用 `admin123` 建出弱口令管理员 |
+| `application-prod.yml`：`teampulse.jwt.secret: ${TPP_JWT_SECRET:}` | 漏配时直接抛异常拒绝启动，**不会静默回退**到开发密钥 |
+| `docker-compose.yml`：`TPP_ADMIN_PASSWORD: "${TPP_ADMIN_PASSWORD:?...}"` | 漏配时 compose 直接报错，**不会**用弱口令建管理员 |
 
 ### 7.3 提交前的自动检查
 
-仓库自带 `.githooks/pre-commit`，提交时拦截四类问题：
-
-| 检查项 | 会被拦的内容 |
-|---|---|
-| 敏感文件本身 | `.env`、`secrets.h`、`device/simulator/config.json`、`deploy/certs/` |
-| 硬编码密码 | `DB_PASSWORD=realpass`（`${DB_PASSWORD:...}` 写法放行） |
-| 设备密钥 | 任何 64 位十六进制串（`secrets.h.example` 里的占位值放行） |
-| 私钥内容 | `-----BEGIN … PRIVATE KEY-----` |
-
-**克隆仓库后需要启用一次**（钩子文件在仓库里，但启用开关是本机配置）：
+仓库自带 `.githooks/pre-commit`，提交时拦截四类问题（`.env`/`secrets.h`/64 位十六进制密钥/私钥内容）。
+克隆后启用一次：
 
 ```bash
 git config core.hooksPath .githooks
 ```
 
-确认是误报时可 `git commit --no-verify` 跳过。
+---
 
-> 文档里的环境相关路径统一写成 `<MySQL安装目录>` 这类占位符；
-> 自己机器的真实路径记在 `docs/本机环境.local.md`（匹配 `*.local.md`，已被忽略）。
+## 8. 可观测性
+
+| 能力 | 实现 | 怎么看 |
+|---|---|---|
+| 请求串联 | `RequestObservabilityFilter` 注入/继承 `X-Trace-Id`，写 MDC 并回传响应头 | `curl -i` 看响应头；前端失败提示条会显示 traceId |
+| 结构化日志 | `logback-spring.xml`：控制台 + 滚动文件，格式 `[%X{traceId}]` | `logs/teampulse.log`（20MB×14 天，总量封顶 500MB） |
+| RED 指标 | `teampulse_api_requests_total{method,uri,status}`、`teampulse_api_failures_total`、`teampulse_api_latency_seconds` | `curl -s localhost:8080/actuator/prometheus` |
+| 业务错误码 | `teampulse_api_errors_total{code}`（如 `60006` 时钟漂移） | 同上 |
+| 打卡流水 | `teampulse_attendance_punch_total{result}`、`teampulse_attendance_idempotent_total{layer}` | 同上 |
+| 设备连接 | `teampulse_mqtt_connected_total`、`teampulse_mqtt_connect_failed_total{reason}` | 同上 |
+| 健康检查 | `/actuator/health`（含 DB、Redis、磁盘） | `curl -s localhost:8080/actuator/health` |
+
+> 指标端点默认放行给抓取端；**生产请在 Nginx/安全组层面限制来源 IP**，不要直接暴露公网。
+
+排障三条线索可以互相对齐：
+
+```
+页面上的 traceId  ↦  logs/teampulse.log 里同 traceId 的所有行
+                  ↦  audit_log.trace_id（谁干的）
+                  ↦  Prometheus 的 errors_total{code=...}（错在哪类）
+```
 
 ---
 
-## 8. 项目结构
+## 9. 审计与合规
+
+| 项 | 说明 |
+|---|---|
+| 留痕范围 | 20 个写操作：用户增改删/重置密码、团队增改删/加人移人、手工补卡、改考勤规则、审批补卡、设备注册/改/轮换密钥/删除、敏感词增改删、删评论 |
+| 记录内容 | 操作人（昵称与角色**快照**）、动作、资源与资源 id、结果（SUCCESS/FAILURE）、耗时、IP、User-Agent、traceId |
+| 失败也留痕 | 业务异常穿过切面时先记录 FAILURE 与错误信息，再原样抛出 |
+| 不可篡改 | `audit_log` 无 `updated_at`、无 `deleted`，代码层与接口层都不提供修改/删除入口 |
+| 谁能查 | `audit:view`：系统管理员、人事专员、审计专员 |
+| 界面 | 「系统 → 审计日志」页：按人/模块/动作/结果/时间/traceId 过滤，traceId 可一键复制 |
+
+---
+
+## 10. 测试与 CI
+
+| 项 | 状态 |
+|---|---|
+| 单元测试 | 1 个测试类 / 11 个用例（考勤计算：迟到分钟、早退分钟、签到签退判定）· `mvn test` 全绿 |
+| 集成测试 | ❌ 未实现（需要 Testcontainers + Docker） |
+| 压测 | ❌ 未做（性能数字均为设计目标，非实测） |
+| CI | `.github/workflows/ci.yml`：3 个 job（后端测试 / 前端构建 / 契约检查） |
+| CI 运行状态 | ⚠️ **当前失败**：`The job was not started because your account is locked due to a billing issue.`——GitHub 账号账单问题，与代码无关；修好账单后手动触发即可 |
+
+---
+
+## 11. 项目结构与文档
 
 ```
 teampulse/
@@ -288,14 +298,45 @@ teampulse/
 ├── frontend/           Vue 3 前端（含生产 Nginx 配置）
 ├── device/             物联网设备侧（ESP32 固件 + 模拟器）
 ├── deploy/             部署资产（MySQL/MQTT 配置、发布与备份脚本）
-├── docs/               技术手册（Word）与生成脚本
+├── docs/               文档（需求规格、交接文档、用例图/ER 图）
+├── .github/workflows/  CI 流水线
 ├── docker-compose.yml  五容器编排
 └── .env.example        环境变量模板
 ```
 
+规模：**125 个 Java 文件 / 9 841 行**、**16 个控制器 / 90 个 REST 接口**、
+**42 个 Vue 组件 / 16 586 行**、**21 张表 / 6 个迁移**、固件约 1 100 行。
+
+| 文档 | 内容 |
+|---|---|
+| [`docs/TeamPulse_需求规格说明书.docx`](docs/TeamPulse_需求规格说明书.docx) | 需求基线：项目背景、29 项总目标与达成状态、6 角色矩阵、83 项功能清单、范围边界（明确不做微服务与分布式）、非功能需求、17 条已知限制 |
+| [`docs/TeamPulse_全过程交接文档.md`](docs/TeamPulse_全过程交接文档.md) | 从老项目重构到 RBAC/审计/观测的完整过程、Bug 与踩坑记录、环境约定、验证基线、未完成事项 |
+| [`docs/角色与权限矩阵.md`](docs/角色与权限矩阵.md) | 6 角色的权限矩阵、数据范围规则、补卡审批流程、审计日志落地说明 |
+| [`docs/代码文件结构.docx`](docs/代码文件结构.docx) | 目录结构速查（125 Java / 42 Vue / 21 表 / 90 接口） |
+| `docs/diagrams/` | 用例图、ER 图（PlantUML 源文件 + PNG/SVG，v1 尚未包含 RBAC 新增表） |
+
 ---
 
-## 9. 常用运维命令
+## 12. 项目状态
+
+| 维度 | 状态 |
+|---|---|
+| 功能开发 | ✅ 8 大模块可运行，90 个接口实测通过 |
+| 权限体系 | ✅ 6 角色 / 22 权限点 / 数据范围 / 补卡审批，实测 403 与数据隔离生效 |
+| 审计留痕 | ✅ 20 个写操作，前端可查 |
+| 可观测性 | ✅ traceId + Prometheus 指标 + 日志落盘 |
+| **云端部署** | ❌ **未执行**：资产齐全但从未在真实服务器跑通（缺服务器/域名/HTTPS） |
+| 测试 | ⚠️ 仅单元测试；集成测试与压测未做 |
+| CI | ⚠️ 配置就绪，因账号账单锁定未运行 |
+
+**已知限制（摘要）**：一人一岗（`user.role` 单值）、DEPT 范围不含子部门、`team_role=leader` 等同 DEPT、
+无权限配置界面、缺勤只回补"昨天"、定时任务无分布式锁、考勤规则全局单行、
+MQTT 未启用 TLS、无登录失败限流、日程完成时间用 `updated_at` 近似。
+完整 17 条与改进方向见需求规格说明书第 11 章。
+
+---
+
+## 13. 常用运维命令
 
 ```bash
 # 发布（备份 → 构建 → 上线 → 健康检查）
@@ -307,6 +348,9 @@ teampulse/
 # 实时看后端日志
 docker compose logs -f --tail=100 backend
 
+# 抓指标
+curl -s http://127.0.0.1:8080/actuator/prometheus | grep teampulse_
+
 # 直接订阅 MQTT，确认设备报文有没有到 broker
 docker exec -it tp-mosquitto mosquitto_sub -t 'attendance/#' -v \
   -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD"
@@ -314,36 +358,32 @@ docker exec -it tp-mosquitto mosquitto_sub -t 'attendance/#' -v \
 # 进数据库看最近打卡
 docker exec -it tp-mysql mysql -uroot -p teampulse \
   -e "select id,employee_no,punch_type,punch_time,status,late_minutes from attendance_record order by id desc limit 10"
+
+# 查最近的管理动作
+docker exec -it tp-mysql mysql -uroot -p teampulse \
+  -e "select created_at,actor_name,action,result,resource,resource_id from audit_log order by id desc limit 20"
 ```
 
-排障请按这个顺序：设备是否联网 → 是否连上 broker → 报文是否到 broker → 后端日志错误码 → 数据库是否有记录。
+排障顺序：设备是否联网 → 是否连上 broker → 报文是否到 broker → 后端日志错误码 → 数据库是否有记录。
 
 ---
 
-## 10. 与原始团队项目的关系
+## 14. 与原始团队项目的关系
 
-本项目由一支团队的老项目重构而来，主要变更：
+本项目由一支团队的老项目（Java + Vue + 鸿蒙三端的协作系统）重构而来，主要变更：
 
 - 包名 `com.soft` → `com.teampulse`，工程目录 `houduan` → `backend`，`TodayJob_Vue_Project` → `frontend`
 - 伪鉴权（请求头透传 userId）→ Spring Security + JWT；明文密码 → BCrypt（含自动升级）
-- 手写建表脚本 → Flyway 版本化迁移；删除 4 张从未接入业务的僵尸表
+- 手写建表脚本 → Flyway 版本化迁移（V1~V6）；删除 4 张从未接入业务的僵尸表
 - 统一响应/异常/错误码/分页/校验规范
-- 新增物联网考勤域（设备、MQTT、打卡、判定、汇总、看板）
-- 新增 Docker Compose 部署、健康检查、备份与发布脚本
-
-详细的技术点拆解见 `docs/TeamPulse_技术手册.docx`。
-
----
-
-## 11. 已知限制
-
-- 定时任务未做分布式锁，多实例部署时需引入 Redis 锁或 ShedLock
-- 考勤规则为全局单条，未支持按部门差异化
-- 附件功能未实现（原项目的半成品已随表一起移除）
-- 前端部分沿用旧页面交互，仅完成接口与状态管理的迁移
+- **新增物联网考勤域**（设备、MQTT、打卡、判定、汇总、看板）
+- **角色从 2 个硬编码改为 RBAC**：6 角色 / 22 权限点 / 部门 / 数据范围 / 补卡审批
+- **新增审计日志与可观测性**：@Audited 切面、traceId、Prometheus 指标、日志落盘
+- 新增 Docker Compose 部署、健康检查、备份与发布脚本、CI 流水线
+- 前端整体重写：42 个组件，含三套日历、图表、权限驱动的菜单渲染
 
 ---
 
-## 12. License
+## 15. License
 
 仅供学习与求职展示使用。

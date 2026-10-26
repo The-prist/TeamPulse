@@ -70,9 +70,9 @@
 
 | 维度 | 数值 |
 |---|---|
-| 后端 Java | 116 个文件 / 约 9 270 行 / 15 个控制器 / **87 个 REST 接口** |
-| 前端 | 41 个 Vue 组件 / 约 15 900 行 / 10 个 JS 模块 |
-| 数据库 | **20 张表** / 5 个 Flyway 迁移（V1~V5 全 success） |
+| 后端 Java | 125 个文件 / 约 9 841 行 / 16 个控制器 / **90 个 REST 接口** |
+| 前端 | 42 个 Vue 组件 / 约 16 586 行 / 11 个 JS 模块 |
+| 数据库 | **21 张表** / 6 个 Flyway 迁移（V1~V6 全 success） |
 | 固件 | 1 083 行单文件（Arduino 框架） |
 | 权限 | 6 角色 / 22 权限点 / 5 部门 |
 | 测试 | 1 个测试类（AttendanceCalculatorTest，11 用例） |
@@ -145,7 +145,7 @@
 ### 5.1 顶层
 ```
 E:\codestorge\
-├── backend/      Spring Boot（116 Java + 资源与迁移）+ CONVENTIONS.md
+├── backend/      Spring Boot（125 Java + 资源与迁移）+ CONVENTIONS.md
 ├── frontend/     Vue 3（41 组件 + 10 JS）
 ├── device/       esp32/attendance_node/attendance_node.ino（1083 行）+ simulator/（HTTP/MQTT 模拟器）
 ├── deploy/       mysql 配置、mosquitto 配置、backup.sh / deploy.sh / gen-mosquitto-passwd.sh、verify-project-db.sql
@@ -190,7 +190,7 @@ E:\codestorge\
 
 ---
 
-## 6. 数据库（20 张表）
+## 6. 数据库（21 张表）
 
 | 分组 | 表 |
 |---|---|
@@ -308,7 +308,7 @@ mvn -B -s <settings> -f E:\codestorge\backend\pom.xml clean compile
 mvn -B -s <settings> -f E:\codestorge\backend\pom.xml test      # 11 个用例
 
 # 5) 迁移
-SELECT version, success FROM teampulse.flyway_schema_history;   # V1~V5 全 1
+SELECT version, success FROM teampulse.flyway_schema_history;   # V1~V6 全 1
 ```
 
 **已验证关键数据**
@@ -388,7 +388,7 @@ SELECT version, success FROM teampulse.flyway_schema_history;   # V1~V5 全 1
 **禁止**
 - 编造未验证的功能或数据（本项目限制见 §11）。
 - 用 `Math.random()` 之类伪造业务数据。
-- 改动 `V1~V5` 已执行的迁移文件（Flyway 会校验 checksum），新增改动请写 V6+。
+- 改动 `V1~V6` 已执行的迁移文件（Flyway 会校验 checksum），新增改动请写 V7+。
 - 在文档里写"已部署到云端"——**没有**。
 
 **验收方式**
@@ -410,3 +410,79 @@ SELECT version, success FROM teampulse.flyway_schema_history;   # V1~V5 全 1
 | 权限点 | `module:action` 形式的字符串，如 `attendance:rule` |
 | 面板 | 管理后台（`/`）与用户工作台（`/u`）两套界面 |
 | 淡蓝主题 | 前端视觉体系，颜色收敛在 `--tp-*` CSS 变量 |
+
+---
+
+## 16. 2026-10-27 第二批更新：审计、可观测、CI 与版本管理
+
+本节记录第一批（RBAC/补卡审批）之后又完成的三块工程能力，以及仓库治理现状。
+
+### 16.1 操作审计日志
+
+| 项 | 内容 |
+|---|---|
+| 表 | `audit_log`（迁移 V6）：追加写入，**无 `updated_at`、无 `deleted`**，操作人与角色是写入时快照 |
+| 记录方式 | `@Audited(module, action, detail)` 注解 + `AuditLogAspect` 切面，0 侵入业务代码 |
+| 记录内容 | 操作人、动作、资源与资源 id、结果、耗时、IP（含 X-Forwarded-For）、UA、traceId |
+| 失败留痕 | 业务异常穿过切面时先记 `FAILURE` 与错误信息，再原样抛出 |
+| 埋点范围 | 20 个写操作：用户 4、团队 5、考勤 3（含审批）、设备 4、敏感词 3、评论 1 |
+| 查询 | `GET /api/v1/audit`（分页 + 6 个过滤条件）、`/{id}`、`/options`，权限点 `audit:view` |
+| 前端 | `views/audit/AuditLogList.vue`，「系统 → 审计日志」菜单按 `audit:view` 显示 |
+| 依赖 | 新增 `spring-boot-starter-aop` |
+
+### 16.2 可观测性
+
+| 能力 | 实现 |
+|---|---|
+| traceId | `RequestObservabilityFilter`（`Ordered.HIGHEST_PRECEDENCE + 10`）：继承或生成 `X-Trace-Id`，写 MDC，回写响应头，`finally` 清理 |
+| 日志 | `logback-spring.xml`：控制台 + 滚动文件，格式含 `[%X{traceId}]`，20MB×14 天、总量封顶 500MB；`LOG_PATH` 可覆盖 |
+| RED 指标 | `teampulse_api_requests_total{method,uri,status}`、`teampulse_api_failures_total`、`teampulse_api_latency_seconds{uri}`；tag 用路由模板避免时间序列爆炸 |
+| 业务指标 | `teampulse_attendance_punch_total{result}`、`teampulse_attendance_idempotent_total{layer}`、`teampulse_api_errors_total{code}`、`teampulse_mqtt_connected_total`、`teampulse_mqtt_connect_failed_total{reason}` |
+| 端点 | `/actuator/prometheus`（已在 SecurityConfig 放行，生产需限来源 IP）、`/actuator/health` |
+| 前端闭环 | 失败提示条显示 `编号 <traceId>`，用户截图即可对上服务端日志 |
+
+实测样本（本机）：
+
+```
+teampulse_api_requests_total{method="POST",status="401",uri="/iot/v1/punch"} 1.0
+teampulse_api_errors_total{code="60001"} 1.0        # 设备未注册
+teampulse_api_errors_total{code="60006"} 2.0        # 时钟漂移
+teampulse_attendance_punch_total{result="success"} 2.0
+teampulse_attendance_idempotent_total{layer="message"} 1.0   # 重复报文被幂等拦截
+```
+
+### 16.3 CI 与版本管理
+
+| 项 | 状态 |
+|---|---|
+| CI 配置 | `.github/workflows/ci.yml`：3 个 job（后端 `mvn clean test` / 前端 pnpm 构建 / 契约检查） |
+| CI 运行 | ⚠️ 失败，但原因与代码无关：`The job was not started because your account is locked due to a billing issue.`（job 未分配 runner，`runner_id=0`、`steps=[]`）。需处理 GitHub 账号账单后重跑 |
+| 本地等价验证 | `mvn test` 11 用例全绿；`vite build` 成功；迁移命名检查通过 |
+| Git 远程 | `git@github.com:The-prist/TeamPulse.git`，分支 `main` |
+| 提交规范 | conventional commits，按功能分组：rbac / attendance(补卡) / audit / observability / frontend-fix / ci / docs |
+| 安全 | `.gitignore` 覆盖 `secrets.h`、`node_modules`、`target`、`.toolchain`、`.run-logs`；提交前扫描无密钥/证书类文件 |
+
+### 16.4 部署现状（仍然是未完成项）
+
+| 资产 | 状态 |
+|---|---|
+| `docker-compose.yml` | 5 容器（mysql/redis/mosquitto/backend/frontend）+ 4 卷 + healthcheck + depends_on |
+| `backend/Dockerfile` / `frontend/Dockerfile` | 多阶段构建（maven→JRE / node→nginx），共 55 行 |
+| `frontend/nginx.conf` | 反代 `/api/v1`、gzip、`/healthz`；HTTPS 段已写好但**被注释** |
+| `deploy/mosquitto.conf` | `allow_anonymous false` + 密码文件（鉴权已开，**TLS 未开**） |
+| `deploy/scripts/` | `deploy.sh`（备份→构建→上线→健康轮询）、`backup.sh`、`gen-mosquitto-passwd.sh` |
+| **是否真跑过** | ❌ **从未**：本机无 Docker，镜像构建与 compose 启动均未验证 |
+| 已知风险 | ① `frontend/Dockerfile` 用 `npm ci/npm install`，但仓库只有 `pnpm-lock.yaml` → 会绕过锁文件 ② nginx `/healthz` 与 `wget` 可用性未验证 ③ MySQL 就绪与 Flyway 首次迁移的时序未验证 |
+
+> 结论：**有服务器即可当天上线最小可用版**（HTTP + IP 访问）；到"敢说部署完成"（HTTPS + MQTT 鉴权 + 备份恢复演练 + 部署手册）还需 1~2 天。
+
+### 16.5 本轮修复的关键问题（供后人避坑）
+
+| 现象 | 根因 | 处理 |
+|---|---|---|
+| `/actuator/prometheus` 返回 401 | SecurityConfig 只放行 health/info | 放行 prometheus 与 metrics，并注明生产要在网关层限来源 |
+| 前端提示条看不到 traceId | 拦截器没读响应头 | `reportNetError` 增加 traceId 参数，`App.vue` 显示编号 |
+| `git ls-tree` 比对中文路径失败 | 默认 `core.quotepath=true` 会转义成 `\346\212\200` | 所有 git 命令加 `-c core.quotepath=false` |
+| 批量改 `.vue` 后渲染报 "Missing semicolon" | 脚本给单行 `catch` 体插入语句时没补换行/分号 | 插入逻辑判断 `rest` 是否以换行开头 |
+| `robocopy /MIR` 清空了 `src/views` 顶层 | 备份目录多了一层 `views/`，镜像时把宿主目录当多余文件删了 | 从 `views-backup/views/` 逐项上移恢复；**以后备份用显式目标目录** |
+| Word 占用导致 docx 覆盖失败 | 用户开着 Word | 另存 `_v1.1` 后关闭 Word 再覆盖回原名，删除重复文件 |
