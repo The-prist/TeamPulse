@@ -19,7 +19,9 @@ param(
     [switch]$SkipFrontend,
     [switch]$SkipBackend,
     [string]$BaseUrl = 'http://127.0.0.1:8080',
-    [string]$DbPassword = $env:DB_PASSWORD
+    [string]$DbPassword = $env:DB_PASSWORD,
+    # 容器/远端环境的管理员密码（本机开发默认 admin123）
+    [string]$AdminPassword = $env:ADMIN_PASSWORD
 )
 
 $ErrorActionPreference = 'Continue'
@@ -116,6 +118,7 @@ if ($alive) {
 
     $e2eArgs = @('tests/api/e2e.mjs', '--base', $BaseUrl)
     if ($ReadOnly) { $e2eArgs += '--read-only' }
+    if ($AdminPassword) { $e2eArgs += @('--admin-password', $AdminPassword) }
     $json = Join-Path $root '.run-logs\e2e-result.json'
     $env:E2E_JSON = $json
     $e2eOut = & $node @e2eArgs 2>&1 | Out-String

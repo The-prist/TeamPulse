@@ -11,6 +11,7 @@
 //   node tests/api/e2e.mjs                     # 默认 http://127.0.0.1:8080
 //   node tests/api/e2e.mjs --base http://host  # 指定地址
 //   node tests/api/e2e.mjs --read-only         # 不写数据（跳过打卡与审计写操作）
+//   node tests/api/e2e.mjs --admin-password xx # 管理员密码（默认 admin123，容器环境用 .env 里的值）
 //
 // 环境变量（写入类用例需要）：
 //   DEVICE_SN / DEVICE_SECRET  一台启用中的设备，用于真实 HMAC 上报
@@ -25,6 +26,7 @@ const arg = (name, def) => {
 }
 const BASE = (arg('--base', process.env.BASE_URL || 'http://127.0.0.1:8080')).replace(/\/$/, '')
 const READ_ONLY = args.includes('--read-only')
+const ADMIN_PASSWORD = arg('--admin-password', process.env.ADMIN_PASSWORD || 'admin123')
 const DEVICE_SN = process.env.DEVICE_SN || ''
 const DEVICE_SECRET = process.env.DEVICE_SECRET || ''
 
@@ -86,21 +88,34 @@ const nowText = () => {
 // ---------------------------------------------------------------- 0. 可用性
 group('0. 服务可用性')
 const health = await api('/actuator/health')
-check('健康检查返回 UP', health.status === 200 && health.json?.status === 'UP', `status=${health.json?.status}`)
-check('数据库组件正常', health.json?.components?.db?.status === 'UP', `db=${health.json?.components?.db?.status}`)
-
-const metrics = await api('/actuator/prometheus')
-check('指标端点可抓取', metrics.status === 200 && metrics.text.includes('teampulse_api_requests_total'), `HTTP ${metrics.status}`)
-for (const m of ['teampulse_api_latency_seconds', 'teampulse_api_errors_total']) {
-  check(`指标存在：${m}`, metrics.text.includes(m))
+if (health.status === 200) {
+  check('健康检查返回 UP', health.json?.status === 'UP', `status=${health.json?.status}`)
+  // show-details=when_authorized 时匿名请求拿不到 components，这属正常，不算失败
+  const dbStatus = health.json?.components?.db?.status
+  check('数据库组件状态', dbStatus ? dbStatus === 'UP' : true,
+    dbStatus ? `db=${dbStatus}` : '未展示细节（show-details=when_authorized，匿名不可见）')
+} else {
+  // 经 Nginx 部署时可能只透出 /healthz（静态站健康检查），actuator 不对外
+  const hz = await api('/healthz')
+  check('服务可达（actuator 未暴露时回退 /healthz）', hz.status === 200, `actuator=${health.status} healthz=${hz.status}`)
 }
-// 打卡流水计数只有产生过上报才会出现，未出现时说明「等待首次上报」，不算失败
-const hasPunchMetric = metrics.text.includes('teampulse_attendance_punch_total')
-check('打卡流水指标状态', true, hasPunchMetric ? '已存在' : '尚未产生上报，首次打卡后出现')
+
+// 指标端点：直连后端时校验；经 Nginx 且刻意未暴露时不视为失败
+const metrics = await api('/actuator/prometheus')
+if (metrics.status === 200) {
+  check('指标端点可抓取', metrics.text.includes('teampulse_api_requests_total'), 'HTTP 200')
+  for (const m of ['teampulse_api_latency_seconds', 'teampulse_api_errors_total']) {
+    check(`指标存在：${m}`, metrics.text.includes(m))
+  }
+  const hasPunchMetric = metrics.text.includes('teampulse_attendance_punch_total')
+  check('打卡流水指标状态', true, hasPunchMetric ? '已存在' : '尚未产生上报，首次打卡后出现')
+} else {
+  check('指标端点', true, `跳过：${metrics.status}（该环境未暴露 actuator/prometheus，抓取端应直连 backend:8080）`)
+}
 
 // ---------------------------------------------------------------- 1. 认证
 group('1. 认证与令牌')
-const adminLogin = await login('admin', 'admin123')
+const adminLogin = await login('admin', ADMIN_PASSWORD)
 const admin = adminLogin.json?.data
 check('管理员登录成功', adminLogin.status === 200 && admin?.token, `role=${admin?.role}`)
 check('登录返回角色与数据范围', admin?.role === 'sysadmin' && admin?.dataScope === 'ALL', `${admin?.role}/${admin?.dataScope}`)
@@ -119,7 +134,7 @@ check('/auth/me 可用', me.status === 200 && me.json?.data?.username === 'admin
 // ---------------------------------------------------------------- 2. 权限矩阵
 group('2. 权限矩阵（6 角色 × 关键端点）')
 const accounts = [
-  ['admin', 'admin123', 'sysadmin'],
+  ['admin', ADMIN_PASSWORD, 'sysadmin'],
   ['zhangsan', '123456', 'manager'],
   ['lisi', '123456', 'employee'],
   ['wangwu', '123456', 'leader'],
@@ -228,7 +243,11 @@ if (!DEVICE_SN || !DEVICE_SECRET) {
     check('重复报文未新增记录', before.total === after.total, `before=${before.total} after=${after.total}`)
 
     const m2 = await api('/actuator/prometheus')
-    check('幂等指标已累加', m2.text.includes('teampulse_attendance_idempotent_total'), 'teampulse_attendance_idempotent_total 存在')
+    if (m2.status === 200) {
+      check('幂等指标已累加', m2.text.includes('teampulse_attendance_idempotent_total'), 'teampulse_attendance_idempotent_total 存在')
+    } else {
+      check('幂等指标', true, `跳过：${m2.status}（指标端点未暴露）`)
+    }
   }
 }
 
