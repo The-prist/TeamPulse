@@ -5,6 +5,18 @@ node_modules/
 *.jar
 *.war
 
+# ---- Java 编译与打包产物（合入 GitHub Java 模板的有效条目）----
+*.class
+*.ctxt
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+# JVM 崩溃日志
+hs_err_pid*
+replay_pid*
+
 # ---- 本地运行产物 ----
 .run-logs/
 backend/run.log
