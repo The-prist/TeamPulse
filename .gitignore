@@ -36,6 +36,8 @@ deploy/mosquitto/passwd
 deploy/backups/
 # 固件真实密钥：只提交 secrets.h.example，真实的 secrets.h 永不入库
 secrets.h
+# 本机环境备忘（真实路径、端口、密码提示），只自己看
+*.local.md
 # 设备模拟器的真实配置（含 deviceSecret），只提交 config.example.json
 device/simulator/config.json
 

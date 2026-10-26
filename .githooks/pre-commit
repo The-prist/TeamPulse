@@ -1,0 +1,75 @@
+#!/bin/sh
+# =============================================================================
+# 提交前检查：拦住不该进仓库的东西
+#
+# 启用方式（已由 harness 配好，新克隆的仓库需要手动执行一次）：
+#   git config core.hooksPath .githooks
+#
+# 想临时跳过检查（确认没问题时）：
+#   git commit --no-verify
+# =============================================================================
+
+fail=0
+files=$(git diff --cached --name-only --diff-filter=ACM)
+
+# ---------- 1. 敏感文件本身 ----------
+for f in $files; do
+    case "$f" in
+        .env|*/.env|.env.local|*/.env.local)
+            echo "[拦截] 这是本地环境变量文件，不该提交: $f" >&2; fail=1 ;;
+        secrets.h|*/secrets.h)
+            echo "[拦截] 固件真实密钥文件，不该提交: $f" >&2; fail=1 ;;
+        device/simulator/config.json)
+            echo "[拦截] 模拟器真实配置（含 deviceSecret），不该提交: $f" >&2; fail=1 ;;
+        deploy/mosquitto/passwd|deploy/certs/*)
+            echo "[拦截] 部署用密钥/证书，不该提交: $f" >&2; fail=1 ;;
+    esac
+done
+
+# ---------- 2. 文件内容 ----------
+PLACEHOLDER_HEX='0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
+
+for f in $files; do
+    case "$f" in
+        *.png|*.jpg|*.jpeg|*.gif|*.ico|*.svg|*.woff|*.woff2|*.ttf|*.eot|*.docx|*.pdf|*.zip|*.jar|*.class|*.log)
+            continue ;;
+    esac
+
+    content=$(git show ":$f" 2>/dev/null) || continue
+    [ -z "$content" ] && continue
+
+    # 2a. 明文私钥
+    if echo "$content" | grep -qE -- '-----BEGIN [A-Z ]*PRIVATE KEY-----'; then
+        echo "[拦截] $f 里包含私钥内容" >&2; fail=1
+    fi
+
+    # 2b. 硬编码密码/密钥值（排除 ${VAR:...} 与 CHANGE_ME 占位）
+    hits=$(echo "$content" | grep -nE \
+        '(DB_PASSWORD|MYSQL_ROOT_PASSWORD|REDIS_PASSWORD|MQTT_PASSWORD|TPP_ADMIN_PASSWORD|JWT_SECRET|TPP_JWT_SECRET)[[:space:]]*[:=][[:space:]]*[A-Za-z0-9]' \
+        | grep -v 'CHANGE_ME' | grep -v '\${' | head -3)
+    if [ -n "$hits" ]; then
+        echo "[拦截] $f 出现硬编码密码/密钥（应改为 \${环境变量}）：" >&2
+        echo "$hits" | sed 's/^/    /' >&2
+        fail=1
+    fi
+
+    # 2c. 64 位十六进制（设备 HMAC 密钥特征），排除已知占位值
+    hexhits=$(echo "$content" | grep -nEo '[0-9a-fA-F]{64}' | while IFS= read -r line; do
+        val=${line#*:}
+        [ "$val" = "$PLACEHOLDER_HEX" ] && continue
+        echo "$line"
+    done | head -3)
+    if [ -n "$hexhits" ]; then
+        echo "[拦截] $f 出现疑似真实设备密钥（64 位十六进制）：" >&2
+        echo "$hexhits" | sed 's/^/    /' >&2
+        fail=1
+    fi
+done
+
+if [ "$fail" -ne 0 ]; then
+    echo "" >&2
+    echo "提交已中止。如果是误报，确认无误后可用: git commit --no-verify" >&2
+    exit 1
+fi
+
+exit 0

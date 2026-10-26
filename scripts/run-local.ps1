@@ -28,8 +28,8 @@ param(
     [int]$DbPort = 3306,
     [string]$DbName = 'teampulse',
     [string]$DbUser = 'root',
-    [Parameter(Mandatory = $true, HelpMessage = '本机 MySQL 密码；没有默认值，请显式传入')]
-    [string]$DbPassword,
+    [Parameter(HelpMessage = '本机 MySQL 密码；不传则自动读 DB_PASSWORD 环境变量')]
+    [string]$DbPassword = $env:DB_PASSWORD,
     [int]$BackendPort = 8080,
     [int]$FrontendPort = 5173,
     [string]$NodePath = '',
@@ -38,8 +38,18 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$Root = Split-Path -Parent $PSScriptRoot
-$BackendDir = Join-Path $Root 'backend'
+
+# 密码只从参数或环境变量来，绝不在脚本里留默认值（脚本会被推到公开仓库）
+if ([string]::IsNullOrWhiteSpace($DbPassword)) {
+    throw @'
+没有数据库密码。两种做法任选其一：
+  1) 传参数         : .\scripts\run-local.ps1 -DbPassword 你的密码
+  2) 设一次环境变量 : setx DB_PASSWORD "你的密码"   （重开终端后生效，之后不用再传）
+不要把密码写进脚本或任何会提交的文件。
+'@
+}
+
+$Root = Split-Path -Parent $PSScriptRoot$BackendDir = Join-Path $Root 'backend'
 $FrontendDir = Join-Path $Root 'frontend'
 $Toolchain = Join-Path $Root '.toolchain'
 $LogDir = Join-Path $Root '.run-logs'

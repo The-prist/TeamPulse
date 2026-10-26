@@ -82,21 +82,45 @@
 // 一、可配置项（现场部署只改这一段）
 // =============================================================================
 
+// ---- 现场密钥：优先读 secrets.h（该文件不入库，见 secrets.h.example）----
+//
+// 为什么这样拆：本文件是要提交到公开仓库的，如果直接把真实 WiFi 密码 /
+// 设备密钥写在下面，一次 git add 就永久留在提交历史里，事后删文件也删不掉。
+// 所以真实值只放同目录的 secrets.h（已被 .gitignore 忽略）。
+//
+// 没创建 secrets.h 时，下面的占位值兜底，保证仓库 clone 下来仍能编译——
+// 只是连不上网、验签必失败（服务端回 60003）。
+#if __has_include("secrets.h")
+#include "secrets.h"
+#endif
+
 // ---- WiFi（ESP32 只支持 2.4GHz）----
+#ifndef WIFI_SSID
 #define WIFI_SSID              "YOUR_WIFI_SSID"
+#endif
+#ifndef WIFI_PASSWORD
 #define WIFI_PASSWORD          "YOUR_WIFI_PASSWORD"
+#endif
 
 // ---- MQTT broker ----
 #define MQTT_SERVER            "192.168.1.100"      // 后端 / mosquitto 所在服务器 IP
 #define MQTT_PORT              1883
 // mosquitto 未开密码认证时留空字符串即可；开了就必须填（对应 .env 的 MQTT_USERNAME）
+#ifndef MQTT_USERNAME
 #define MQTT_USERNAME          ""
+#endif
+#ifndef MQTT_PASSWORD
 #define MQTT_PASSWORD          ""
+#endif
 
 // ---- 设备身份（必须与后端 iot_device 表一致）----
+#ifndef DEVICE_SN
 #define DEVICE_SN              "TP-ESP32-DEMO"
-// ⚠️ 必须替换成后端启动日志里打印的 64 位十六进制密钥，否则一律 60003 验签失败
+#endif
+// ⚠️ 密钥从后端启动日志或 iot_device.secret 取，写进 secrets.h，不要写在这里
+#ifndef DEVICE_SECRET
 #define DEVICE_SECRET          "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+#endif
 #define FIRMWARE_VERSION       "1.0.0"
 
 // ---- 引脚 ----
