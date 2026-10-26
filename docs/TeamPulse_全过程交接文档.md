@@ -471,7 +471,7 @@ teampulse_attendance_idempotent_total{layer="message"} 1.0   # 重复报文被�
 | `frontend/nginx.conf` | 反代 `/api/v1`、gzip、`/healthz`；HTTPS 段已写好但**被注释** |
 | `deploy/mosquitto.conf` | `allow_anonymous false` + 密码文件（鉴权已开，**TLS 未开**） |
 | `deploy/scripts/` | `deploy.sh`（备份→构建→上线→健康轮询）、`backup.sh`、`gen-mosquitto-passwd.sh` |
-| **是否真跑过** | ❌ **从未**：本机无 Docker，镜像构建与 compose 启动均未验证 |
+| **是否真跑过** | ✅ 2026-10-27 本机首次跑通（详见 `docs/部署验证记录.md`）；云服务器仍未验证 |
 | 已知风险 | ① `frontend/Dockerfile` 用 `npm ci/npm install`，但仓库只有 `pnpm-lock.yaml` → 会绕过锁文件 ② nginx `/healthz` 与 `wget` 可用性未验证 ③ MySQL 就绪与 Flyway 首次迁移的时序未验证 |
 
 > 结论：**有服务器即可当天上线最小可用版**（HTTP + IP 访问）；到"敢说部署完成"（HTTPS + MQTT 鉴权 + 备份恢复演练 + 部署手册）还需 1~2 天。
@@ -486,3 +486,19 @@ teampulse_attendance_idempotent_total{layer="message"} 1.0   # 重复报文被�
 | 批量改 `.vue` 后渲染报 "Missing semicolon" | 脚本给单行 `catch` 体插入语句时没补换行/分号 | 插入逻辑判断 `rest` 是否以换行开头 |
 | `robocopy /MIR` 清空了 `src/views` 顶层 | 备份目录多了一层 `views/`，镜像时把宿主目录当多余文件删了 | 从 `views-backup/views/` 逐项上移恢复；**以后备份用显式目标目录** |
 | Word 占用导致 docx 覆盖失败 | 用户开着 Word | 另存 `_v1.1` 后关闭 Word 再覆盖回原名，删除重复文件 |
+
+### 16.6 本机容器化验证（2026-10-27 补充）
+
+首次在 Windows 11 + Docker Desktop（WSL2）跑通 compose，修掉 7 个问题，完整记录见 `docs/部署验证记录.md`。摘要：
+
+| 分类 | 问题 | 修复 |
+|---|---|---|
+| 环境 | winget 安装被拒（无管理员）、WSL 未装、Docker Hub 不可达 | 管理员启用 WSL → 重启 → `wsl --update`；`daemon.json` 配 registry-mirrors |
+| 构建 | 缺 `frontend/.dockerignore`（193MB 上下文 + 平台不匹配） | 新增 .dockerignore，上下文降到 0.6MB |
+| 构建 | `pnpm-workspace.yaml` 只有 `onlyBuiltDependencies` 无 `packages` | 移入 `package.json` 的 `pnpm` 字段并删除该文件 |
+| 构建 | Dockerfile 用 npm 安装，绕过 pnpm 锁文件 | 改 corepack + `pnpm install --frozen-lockfile` |
+| 运行 | mosquitto 用 bridge 专用参数 `keepalive_interval` 导致重启循环 | 改 `max_keepalive 120` + `max_packet_size` |
+| 功能 | **全新库 admin 权限为 0**（bootstrap 写旧角色值 `admin`） | 改 `sysadmin`，并新增 V7 归一历史角色值 |
+| 功能 | admin 部门为空 | bootstrap 建号时挂到根部门（总经办） |
+
+验证证据：清空数据卷后 `compose up` → 5 容器 healthy；Flyway V1~V7；admin 登录返回 `role=sysadmin`、22 权限点、`dept=总经办`、`scope=ALL`；`/user/list`、`/audit`、`/devices`、`/attendance/rule`、`/dashboard/admin` 全 200；后端以 `teampulse-backend-1` 连上 MQTT。
