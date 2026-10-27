@@ -17,8 +17,23 @@
 -->
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+
+// 矢量云素材（SVG，自绘，无第三方版权）：扁平泡泡风格
+import cloud1 from '@/assets/sky/cloud-1.svg'
+import cloud2 from '@/assets/sky/cloud-2.svg'
+import cloud3 from '@/assets/sky/cloud-3.svg'
+import cloud4 from '@/assets/sky/cloud-4.svg'
+import cloud5 from '@/assets/sky/cloud-5.svg'
+import cloud6 from '@/assets/sky/cloud-6.svg'
+
+const CLOUD_SRC = [cloud1, cloud2, cloud3, cloud4, cloud5, cloud6]
+const cloudImages = []
+/** 模板用的云列表（只放渲染需要的最小字段） */
+const cloudList = ref([])
+const cloudEls = []
 import {
   beijingDateAtHour,
+  cloudAlpha,
   beijingHour,
   moonIllumination,
   moonPhaseName,
@@ -53,6 +68,7 @@ const dragging = ref(false)
 const collapsed = ref(false)
 
 let stars = []
+const cloudsVisible = ref(0)
 let events = []
 let contrail = []
 let meteorTrail = []
@@ -114,6 +130,83 @@ function makeStar() {
  *   - 中排更大，顶排 2~3 个"鼓包"，做出顶部起伏
  *   - 每朵云尺度不同（22~150），小的做远景点缀
  */
+/** 云落点：只在可见区域（顶部带 / 左右留白），避免被中间卡片挡住 */
+function pickCloudSpot(region) {
+  if (region === 'left') return { x: rand(width * 0.09, width * 0.17), y: rand(height * 0.26, height * 0.7) }
+  if (region === 'right') return { x: rand(width * 0.83, width * 0.91), y: rand(height * 0.26, height * 0.7) }
+  return { x: rand(width * 0.12, width * 0.88), y: rand(height * 0.07, height * 0.19) }
+}
+
+function buildClouds() {
+  const n = Math.max(4, Math.min(6, Math.round(width / 340)))
+  const plan = ['top', 'top', 'left', 'right', 'top', 'left'].slice(0, n)
+
+  const list = []
+  const usedIdx = new Set()
+  for (const region of plan) {
+    let imgIndex = Math.floor(Math.random() * CLOUD_SRC.length)
+    for (let k = 0; k < CLOUD_SRC.length && usedIdx.has(imgIndex); k++) {
+      imgIndex = (imgIndex + 1) % CLOUD_SRC.length
+    }
+    usedIdx.add(imgIndex)
+
+    const img = cloudImages[imgIndex]
+    const ratio = img?.naturalHeight ? img.naturalHeight / img.naturalWidth : 0.5
+    const targetW = region === 'top' ? rand(190, 290) : rand(230, 330)
+
+    let spot = null
+    for (let tries = 0; tries < 8; tries++) {
+      const candidate = pickCloudSpot(region)
+      spot = candidate
+      if (!list.some((c) => Math.hypot(c.hx - candidate.x, c.hy - candidate.y) < 240)) break
+    }
+
+    list.push({
+      src: CLOUD_SRC[imgIndex],
+      imgIndex,
+      x: spot.x,
+      y: spot.y,
+      hx: spot.x,
+      hy: spot.y,
+      w: targetW,
+      h: targetW * ratio,
+      alpha: rand(0.9, 1),
+      vx: rand(-0.014, 0.014),
+      vy: rand(-0.005, 0.005),
+      rx: rand(60, 140),
+      ry: rand(18, 48),
+    })
+  }
+
+  cloudList.value = list
+  cloudEls.length = 0
+}
+
+function stepClouds(dt) {
+  const k = Math.min(dt, 32) / 16.67
+  for (const c of cloudList.value) {
+    c.vx += rand(-0.0006, 0.0006) * k
+    c.vy += rand(-0.0004, 0.0004) * k
+    // 很轻的回家力：云慢慢漂回原位附近
+    c.vx += (c.hx - c.x) * 0.00012 * k
+    c.vy += (c.hy - c.y) * 0.00012 * k
+    c.vx *= 0.995
+    c.vy *= 0.995
+    c.x += c.vx * k
+    c.y += c.vy * k
+    c.x = Math.max(Math.max(0, c.hx - c.rx), Math.min(Math.min(width, c.hx + c.rx), c.x))
+    c.y = Math.max(Math.max(0, c.hy - c.ry), Math.min(Math.min(height, c.hy + c.ry), c.y))
+  }
+  // 位置每帧直接写 DOM，避免 Vue 在 60fps 下反复 diff
+  for (let i = 0; i < cloudEls.length; i++) {
+    const el = cloudEls[i]
+    const c = cloudList.value[i]
+    if (!el || !c) continue
+    el.style.transform = `translate3d(${(c.x - c.w / 2).toFixed(1)}px, ${(c.y - c.h / 2).toFixed(1)}px, 0)`
+    el.style.opacity = String(c.alpha * cloudsVisible.value)
+  }
+}
+
 function buildStars() {
   const count = Math.max(40, Math.min(200, Math.round((width * height) / props.density)))
   stars = Array.from({ length: count }, makeStar)
@@ -176,6 +269,7 @@ function refreshSky() {
   sunCss = sunColor(altitude).css
   sunAlpha = sunVisibility(altitude)
   starsVisible = starAlpha(altitude)
+  cloudsVisible.value = cloudAlpha(altitude)
 
   // 与月亮共用同一条圆弧
   const sunPos = arcPos(altitude, azimuth)
@@ -611,6 +705,7 @@ function resize() {
   cachedGradient = null
 
   if (resized || !stars.length) buildStars()
+  if (resized || !cloudList.value.length) buildClouds()
   refreshSky()
   if (!nextEventAt) scheduleNextEvent(performance.now())
   draw()
@@ -622,6 +717,7 @@ function loop(ts) {
   last = ts
   refreshSky()
   stepStars(dt)
+  stepClouds(dt)
   stepEvents(dt)
   draw()
   raf = requestAnimationFrame(loop)
@@ -690,6 +786,18 @@ function setHour(h) {
 let ro = null
 
 onMounted(() => {
+  // 预加载矢量云（构建后被内联成 data URI），加载完成后回填真实宽高比
+  CLOUD_SRC.forEach((src, i) => {
+    const img = new Image()
+    img.onload = () => {
+      cloudList.value.forEach((c) => {
+        if (c.imgIndex === i) c.h = c.w * (img.naturalHeight / img.naturalWidth)
+      })
+    }
+    img.src = src
+    cloudImages[i] = img
+  })
+
   resize()
   ro = new ResizeObserver(() => resize())
   ro.observe(canvasRef.value)
@@ -710,6 +818,9 @@ onMounted(() => {
     get hour() { return renderHour },
     get sun() { return { altitude: sunAlt, azimuth: sunAz, x: sunX, y: sunY, alpha: sunAlpha, color: sunCss } },
     get sky() { return { top: palette.top, mid: palette.mid, bottom: palette.bottom } },
+    get clouds() { return cloudList.value.map((c) => ({ x: Math.round(c.x), y: Math.round(c.y), w: Math.round(c.w), imgIndex: c.imgIndex })) },
+    get cloudsVisible() { return cloudsVisible.value },
+    get __cloudImages() { return cloudImages.map((i) => (i ? { complete: i.complete, w: i.naturalWidth, h: i.naturalHeight, src: String(i.src).slice(0, 40) } : null)) },
     get starsVisible() { return starsVisible },
     get moon() { return { altitude: moonAlt, azimuth: moonAz, fraction: moonFrac, phase: moonPhase, x: moonX, y: moonY, alpha: moonAlpha } },
     // 仅供测试：临时覆盖月相与屏幕位置，验证不同月牙形状的绘制
@@ -736,6 +847,19 @@ onBeforeUnmount(() => {
 
 <template>
   <canvas ref="canvasRef" class="login-sky" aria-hidden="true"></canvas>
+
+  <!-- 云层：用 DOM <img> 渲染 SVG，浏览器原生栅格化，任意 DPI 都清晰 -->
+  <div class="cloud-layer" aria-hidden="true">
+    <img
+      v-for="(c, i) in cloudList"
+      :key="i"
+      :ref="(el) => { if (el) cloudEls[i] = el }"
+      :src="c.src"
+      class="cloud"
+      :style="{ width: c.w + 'px', height: c.h + 'px' }"
+      alt=""
+    />
+  </div>
 
   <!-- 主页调试卡片：北京时间 / 太阳位置 / 0–24 时间轴 / 触发按钮 -->
   <section class="debug-card" aria-label="天空调试">
@@ -800,6 +924,23 @@ onBeforeUnmount(() => {
   display: block;
   pointer-events: none;
   z-index: 0;
+}
+
+.cloud-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.cloud {
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform, opacity;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .debug-card {
