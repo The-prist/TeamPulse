@@ -1,0 +1,140 @@
+/* =====================================================================
+   亮色主题 · 提高对比度与饱和度
+   ---------------------------------------------------------------------
+   反馈：亮色下"一片白"，表格行与行之间看不出分界，必须悬停才知道是一行。
+
+   做法：
+     1. 调色板整体加深一档饱和度：页面底更蓝、卡片更淡、描边明显加深
+     2. 新增 --tp-divider（表格行分隔线），保证在卡片底上 1.9:1 以上，
+        肉眼一眼能看到线，但不至于抢内容
+     3. 表格：表头有底色、每行有下边框、悬停有色块、外框有淡蓝描边
+     4. 卡片 / 输入框 / 描述列表 / 分组标题：一律带 1px 淡蓝描边
+   ===================================================================== */
+
+:root {
+  /* 页面底更饱和：卡片浮起来才不像"一张白纸" */
+  --tp-bg-page: #d5e3f4;
+  --tp-bg-card: #f7fbff;
+  --tp-bg-card-head: #dceafb;
+  --tp-bg-subtle: #e2eefc;
+  --tp-surface: #f3f8fd;
+  --tp-surface-strong: #ffffff;
+  --tp-text-strong: #0b2136;
+
+  /* 描边加深：卡片、输入框、表格都能看出轮廓 */
+  --tp-border: #a6c6e6;
+  --tp-border-strong: #7da8d4;
+  /* 表格行分隔线：比卡片边框再深一点，不用悬停也能看到 */
+  --tp-divider: #b7d1ec;
+
+  /* 文字加深一档，饱和度更高 */
+  --tp-text: #0c2439;
+  --tp-text-muted: #4a6584;
+  --tp-text-faint: #7b93ab;
+
+  /* 主色更饱和 */
+  --tp-primary: #1f63cc;
+  --tp-primary-soft: #d6e6fb;
+}
+
+/* ---------------------------------------------------------------- 表格 */
+/* 表头有底色、每行有下边框：这是"每一块都有轮廓"的主要手段 */
+.el-table {
+  --el-table-border-color: var(--tp-divider);
+  --el-table-header-bg-color: var(--tp-bg-card-head);
+  --el-table-header-text-color: #14395c;
+  --el-table-row-hover-bg-color: rgba(31, 99, 204, 0.1);
+  --el-table-text-color: var(--tp-text);
+  border: 1px solid var(--tp-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.el-table th.el-table__cell {
+  background: var(--tp-bg-card-head);
+  font-weight: 650;
+  border-bottom: 1px solid var(--tp-border-strong) !important;
+}
+
+.el-table td.el-table__cell {
+  border-bottom: 1px solid var(--tp-divider) !important;
+}
+
+/* 最后一行不需要下边框（外框已经画出轮廓） */
+.el-table__body tr:last-child td.el-table__cell {
+  border-bottom: none !important;
+}
+
+/* 带 border 属性的表格：列分隔线也加深 */
+.el-table--border .el-table__cell,
+.el-table--border::after,
+.el-table--border::before {
+  border-color: var(--tp-divider) !important;
+}
+
+/* 悬停整行加色块，与静态分界线叠加，定位更清楚 */
+.el-table__body tr:hover > td.el-table__cell {
+  background: rgba(31, 99, 204, 0.1) !important;
+}
+
+/* 斑马纹：隔着看也行，不用悬停就能跟着行读 */
+.el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
+  background: rgba(31, 99, 204, 0.045);
+}
+
+/* ---------------------------------------------------------------- 卡片 */
+.el-card {
+  border: 1px solid var(--tp-border);
+  box-shadow: 0 1px 2px rgba(16, 42, 67, 0.06), 0 8px 20px -16px rgba(16, 42, 67, 0.5);
+}
+
+.el-card__header {
+  border-bottom: 1px solid var(--tp-border) !important;
+}
+
+/* ---------------------------------------------------------------- 表单与描述列表 */
+.el-input__wrapper,
+.el-textarea__inner,
+.el-select__wrapper {
+  box-shadow: 0 0 0 1px var(--tp-border) inset !important;
+}
+
+.el-input__wrapper:hover,
+.el-textarea__inner:hover,
+.el-select__wrapper:hover {
+  box-shadow: 0 0 0 1px var(--tp-border-strong) inset !important;
+}
+
+.el-descriptions {
+  border: 1px solid var(--tp-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.el-descriptions__body .el-descriptions__table .el-descriptions__cell {
+  border: 1px solid var(--tp-divider) !important;
+}
+
+.el-descriptions__label {
+  background: var(--tp-bg-subtle) !important;
+  color: var(--tp-text-muted) !important;
+}
+
+/* ---------------------------------------------------------------- 分页 / 分隔线 */
+.el-divider {
+  border-color: var(--tp-border) !important;
+}
+
+/* ---------------------------------------------------------------- 暗色兼容 */
+/* 暗色下这些新加深的值不适用，沿用 theme.css 的暗色变量；只补表格外框 */
+html.dark .el-table {
+  border-color: var(--tp-border);
+}
+
+html.dark .el-table th.el-table__cell {
+  border-bottom-color: var(--tp-border-strong) !important;
+}
+
+html.dark .el-table td.el-table__cell {
+  border-bottom-color: var(--tp-border) !important;
+}

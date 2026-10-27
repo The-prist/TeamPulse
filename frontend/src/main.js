@@ -12,6 +12,7 @@ import './styles/index.css'
 import './styles/theme.css'
 import './styles/dark-fixes.css'
 import './styles/tabs.css'
+import './styles/light.css'
 import { initTheme } from './utils/theme'
 
 // 必须在 mount 之前确定主题，否则暗色用户会看到一帧白屏
