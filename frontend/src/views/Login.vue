@@ -5,7 +5,8 @@
 -->
 <template>
   <div class="login-page">
-    <div class="bg-grid" aria-hidden="true"></div>
+    <!-- 背景粒子：每颗白点只在自己附近的小矩形内漂浮，鼠标靠近会被吸引但不越界 -->
+    <LoginDots />
 
     <div class="login-panel">
       <!-- 左侧品牌区 -->
@@ -90,6 +91,7 @@
 </template>
 
 <script setup>
+import LoginDots from '@/components/LoginDots.vue'
 import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -148,19 +150,9 @@ async function handleLogin() {
   align-items: center;
   justify-content: center;
   padding: 32px 20px;
-  background: radial-gradient(circle at 18% 12%, #1e3a8a 0%, #0f172a 45%, #020617 100%);
+  /* 纯色深蓝底：粒子层负责制造层次，不再用渐变 */
+  background: #0b1c38;
   overflow: hidden;
-}
-
-/* 细网格让深色背景不显得空 */
-.bg-grid {
-  position: absolute;
-  inset: 0;
-  background-image: linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px);
-  background-size: 44px 44px;
-  mask-image: radial-gradient(circle at 50% 40%, #000 0%, transparent 78%);
-  pointer-events: none;
 }
 
 .login-panel {
