@@ -16,6 +16,7 @@ import com.teampulse.module.team.mapper.TeamMemberMapper;
 import com.teampulse.module.user.entity.User;
 import com.teampulse.module.user.mapper.UserMapper;
 import com.teampulse.security.SecurityUtils;
+import com.teampulse.security.Perms;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -229,8 +230,8 @@ public class TeamService {
     public void delete(Long teamId) {
         Team team = getById(teamId);
         Long operatorId = SecurityUtils.currentUserId();
-        if (!SecurityUtils.isAdmin() && !operatorId.equals(team.getCreatorId())) {
-            throw BizException.of(ErrorCode.FORBIDDEN, "只有团队创建人或管理员可以删除团队");
+        if (!SecurityUtils.hasPermission(Perms.TEAM_MANAGE) && !operatorId.equals(team.getCreatorId())) {
+            throw BizException.of(ErrorCode.FORBIDDEN, "只有团队创建人或拥有 team:manage 的人可以删除团队");
         }
         teamMemberMapper.delete(Wrappers.<TeamMember>lambdaQuery().eq(TeamMember::getTeamId, teamId));
         teamMapper.deleteById(teamId);
@@ -314,8 +315,8 @@ public class TeamService {
 
     /** 按显式传入的操作者鉴权：addMember 等接口的操作者是方法参数，便于在日志里追溯 */
     private void requireLeaderOrAdmin(Long teamId, Long operatorId) {
-        if (SecurityUtils.isAdmin()) {
-            // 管理员是跨团队运维角色，不要求自己也在团队里
+        if (SecurityUtils.hasPermission(Perms.TEAM_MANAGE)) {
+            // 有团队管理权限的是跨团队运维角色，不要求自己也在团队里
             return;
         }
         if (!ROLE_LEADER.equals(memberRole(teamId, operatorId))) {

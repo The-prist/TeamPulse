@@ -13,6 +13,7 @@ import com.teampulse.module.user.entity.User;
 import com.teampulse.module.user.mapper.UserMapper;
 import com.teampulse.security.LoginUser;
 import com.teampulse.security.SecurityUtils;
+import com.teampulse.security.Perms;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -117,7 +118,8 @@ public class CommentService {
     @Transactional
     public void delete(Long commentId, Long operatorId) {
         Comment comment = getOrThrow(commentId);
-        if (!Objects.equals(comment.getCreatorId(), operatorId) && !SecurityUtils.isAdmin()) {
+        if (!Objects.equals(comment.getCreatorId(), operatorId)
+                && !SecurityUtils.hasPermission(Perms.COMMENT_MANAGE)) {
             throw BizException.of(ErrorCode.FORBIDDEN, "只有评论作者或管理员可以删除该评论");
         }
         commentMapper.deleteById(commentId);

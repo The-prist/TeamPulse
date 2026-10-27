@@ -15,6 +15,7 @@ import com.teampulse.module.worklog.dto.WorklogDtos;
 import com.teampulse.module.worklog.entity.Worklog;
 import com.teampulse.module.worklog.mapper.WorklogMapper;
 import com.teampulse.security.SecurityUtils;
+import com.teampulse.security.Perms;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -369,9 +370,9 @@ public class WorklogService {
         }
     }
 
-    /** 仅日志作者或 admin 可以修改/删除 */
+    /** 仅日志作者或拥有 worklog:manage 的人可以修改/删除 */
     private void requireOwnerOrAdmin(Long creatorId, Long operatorId) {
-        if (SecurityUtils.isAdmin()) {
+        if (SecurityUtils.hasPermission(Perms.WORKLOG_MANAGE)) {
             return;
         }
         if (operatorId == null || !operatorId.equals(creatorId)) {

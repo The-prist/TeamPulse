@@ -17,6 +17,7 @@ import com.teampulse.module.kanban.vo.KanbanCardVO;
 import com.teampulse.module.user.entity.User;
 import com.teampulse.module.user.mapper.UserMapper;
 import com.teampulse.security.SecurityUtils;
+import com.teampulse.security.Perms;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -570,9 +571,9 @@ public class KanbanService {
         return item;
     }
 
-    /** 只有创建者或 admin 能改看板元信息与删除看板 */
+    /** 只有创建者或拥有 kanban:manage 的人能改看板元信息与删除看板 */
     private void requireOwnerOrAdmin(Long creatorId, Long operatorId) {
-        if (SecurityUtils.isAdmin()) {
+        if (SecurityUtils.hasPermission(Perms.KANBAN_MANAGE)) {
             return;
         }
         if (operatorId == null || !operatorId.equals(creatorId)) {

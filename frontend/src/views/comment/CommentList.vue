@@ -172,7 +172,13 @@
             </el-table-column>
             <el-table-column label="操作" width="90" fixed="right">
               <template #default="{ row }">
-                <el-button link type="danger" @click="removeComment(row)">删除</el-button>
+                <el-button
+                  v-if="canDelete(row)"
+                  link
+                  type="danger"
+                  @click="removeComment(row)"
+                >删除</el-button>
+                <span v-else class="muted">—</span>
               </template>
             </el-table-column>
           </el-table>
@@ -192,7 +198,9 @@
         </el-card>
       </el-tab-pane>
 
-      <el-tab-pane label="敏感词管理" name="sensitive">
+      <!-- 敏感词管理需要 sensitive:manage；没有该权限的角色（如人事）看不到这个页签，
+           避免打开就弹「无权限」 -->
+      <el-tab-pane v-if="auth.hasPerm('sensitive:manage')" label="敏感词管理" name="sensitive">
         <SensitiveWordPanel />
       </el-tab-pane>
     </el-tabs>
@@ -203,9 +211,11 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { commentApi, userApi } from '@/api'
+import { useAuthStore } from '@/stores/auth'
 import { relatedTypeText } from '@/utils/dict'
 import SensitiveWordPanel from './SensitiveWordPanel.vue'
 
+const auth = useAuthStore()
 const activeTab = ref('comments')
 const loading = ref(false)
 // 加载失败与「没有数据」是两件事，用独立标志驱动告警与重试
@@ -325,6 +335,13 @@ function resetQuery() {
   query.page = 1
   query.size = 200
   load()
+}
+
+/** 与后端一致：本人可删自己的，comment:manage 可删任意 */
+function canDelete(row) {
+  if (auth.hasPerm('comment:manage')) return true
+  const me = auth.user?.userId
+  return row && row.creatorId != null && me != null && row.creatorId === me
 }
 
 async function removeComment(row) {

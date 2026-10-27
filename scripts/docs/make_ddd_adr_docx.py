@@ -84,6 +84,14 @@ ADRS = [
      "code=0 成功，4xxxx 客户端，5xxxx 服务端，6xxxx 设备业务；前端映射规则集中。",
      "错误码是自造约定，非 HTTP 标准。",
      "HTTP 状态码同时保持语义（401/403/404/409），便于网关与日志观察。"),
+    ("ADR-09", "授权判断不复用数据范围判断（isAdmin 语义漂移的教训）",
+     "SecurityUtils.isAdmin() 曾被重新定义为「data_scope=ALL」，于是 hr 与 auditor 也满足该条件；"
+     "而 6 处授权代码把它当「管理员」用，结果人事和只读审计员可以删除他人的评论、日程、看板、团队、工作日志。",
+     "现在改为按各域已有的 *:manage 权限点判断（comment/manage、kanban/manage、schedule/manage、"
+     "team/manage、worklog/manage），权限调整只需改 role_permission 表。",
+     "方法名 isAdmin() 容易误导，读代码时容易再次用错。",
+     "isAdmin() 保留但补了注释说明其语义；授权一律用 hasPermission(Perms.X)；"
+     "接口断言新增 5b 组做回归（人事删他人评论必须 403）。"),
 ]
 
 
@@ -96,7 +104,7 @@ def main() -> int:
         "TeamPulse 详细设计与架构决策记录",
         "团队协作与物联网考勤平台 · 实现细节与取舍依据",
         ["覆盖：认证、打卡、审批、数据范围、审计、可观测、定时结算",
-         "包含 8 条 ADR（Architecture Decision Record）",
+         "包含 9 条 ADR（Architecture Decision Record）",
          "所有类名与行数取自源码，伪代码对应真实实现顺序",
          "文档版本 v1.0"],
     )
@@ -246,7 +254,7 @@ settleDaily(yesterday):
 
     C.h1(doc, "10　已知技术债")
     C.table(doc, ["项", "影响", "建议"],
-            [["Kanban 权限靠 Service 判断「创建者或 admin」", "没有独立权限点，管理端无法按角色配置看板权限", "补 kanban:view/manage 权限点 + 迁移"],
+            [["各域「代他人操作」目前靠创建者 + *:manage 权限点判断", "权限点齐全，但缺跨团队的「管理全部」列表入口", "管理端补跨团队管理视图"],
              ["user.role 单值", "一人多岗无法表达", "user_role 关联表"],
              ["DEPT 不含子部门", "经理看不到下属部门数据", "递归 CTE 或闭包表"],
              ["@Scheduled 无分布式锁", "多实例时会重复结算（幂等但不经济）", "ShedLock"],

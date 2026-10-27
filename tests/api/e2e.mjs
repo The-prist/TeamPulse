@@ -265,6 +265,40 @@ check('员工可查自己的补卡申请', mine.status === 200, `total=${mine.js
 const employeePending = await api('/api/v1/makeup/pending?page=1&size=5', { token: tokens['lisi'] })
 check('员工不能查审批待办（403）', employeePending.status === 403, `HTTP ${employeePending.status}`)
 
+// ---------------------------------------------------------------- 5b. 授权回归
+group('5b. 授权回归（跨域越权）')
+{
+  // 背景：SecurityUtils.isAdmin() 的实际语义是 data_scope=ALL（含 hr、auditor），
+  // 却被当成「管理员」用于 6 处授权判断，导致人事与只读审计员能删除他人的
+  // 评论 / 日程 / 看板 / 团队 / 工作日志。此处用「评论删除」做代表回归。
+  const adminToken = admin?.token
+  const hrLogin = await login('sunqi', '123456')
+  const mgrLogin = await login('zhangsan', '123456')
+  const hrToken = hrLogin.json?.data?.token
+  const mgrToken = mgrLogin.json?.data?.token
+  const tag = 'e2e-authz-' + Date.now()
+
+  const created = await api('/api/v1/comment', {
+    method: 'POST',
+    token: adminToken,
+    body: { relatedType: 'schedule', relatedId: 1, content: tag },
+  })
+  check('管理员创建评论（越权用例前置）', created.status === 200, `HTTP ${created.status}`)
+
+  const list = await api('/api/v1/comment/admin/page?relatedType=schedule&page=1&size=50', { token: adminToken })
+  const mine = (list.json?.data?.records || []).find((r) => String(r.content || '').includes(tag))
+  check('能从管理端查到该评论', !!mine, mine ? `commentId=${mine.commentId}` : '未找到')
+
+  if (mine?.commentId) {
+    const hrDel = await api('/api/v1/comment/' + mine.commentId, { method: 'DELETE', token: hrToken })
+    check('人事无 comment:manage，删除他人评论被拒', hrDel.status === 403,
+      `HTTP ${hrDel.status} code=${hrDel.json?.code}`)
+
+    const mgrDel = await api('/api/v1/comment/' + mine.commentId, { method: 'DELETE', token: mgrToken })
+    check('拥有 comment:manage 的经理可删除', mgrDel.status === 200, `HTTP ${mgrDel.status}`)
+  }
+}
+
 // ---------------------------------------------------------------- 6. 审计
 group('6. 审计留痕')
 const auditList = await api('/api/v1/audit?page=1&size=50', { token: admin?.token })

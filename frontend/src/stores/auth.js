@@ -24,6 +24,8 @@ export const useAuthStore = defineStore('auth', () => {
   /** 数据范围：ALL / DEPT / SELF */
   const dataScope = computed(() => (user.value?.dataScope || 'SELF').toUpperCase())
   const permissions = computed(() => user.value?.permissions || [])
+/** 当前登录用户 id（评论/日志等「本人可操作」判断用） */
+const userId = computed(() => user.value?.userId ?? null)
   const departmentId = computed(() => user.value?.departmentId || null)
   const departmentName = computed(() => user.value?.departmentName || '')
 
@@ -117,6 +119,7 @@ export const useAuthStore = defineStore('auth', () => {
     isLoggedIn,
     role,
     roleName,
+    userId,
     dataScope,
     permissions,
     departmentId,

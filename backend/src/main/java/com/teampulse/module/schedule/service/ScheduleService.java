@@ -17,6 +17,7 @@ import com.teampulse.module.team.mapper.TeamMapper;
 import com.teampulse.module.user.entity.User;
 import com.teampulse.module.user.mapper.UserMapper;
 import com.teampulse.security.SecurityUtils;
+import com.teampulse.security.Perms;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -321,7 +322,7 @@ public class ScheduleService {
     }
 
     private void requireOwnerOrAdmin(Schedule schedule, Long operatorId) {
-        if (SecurityUtils.isAdmin()) {
+        if (SecurityUtils.hasPermission(Perms.SCHEDULE_MANAGE)) {
             return;
         }
         if (!schedule.getCreatorId().equals(operatorId)) {
