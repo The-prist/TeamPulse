@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { skyApi } from '@/api'
-import { BUCKET_LABEL, weatherBucket } from '@/utils/skyWeather'
+import { BUCKET_LABEL, weatherBucket, weatherIntensity } from '@/utils/skyWeather'
 
 const REGION_KEY = 'tp_sky_region'
 
@@ -24,6 +24,8 @@ export const useSkyStore = defineStore('sky', () => {
   const manual = ref(readManual())
   /** 调试用：强制某个天气档位，'auto' 表示跟随真实天气 */
   const override = ref('auto')
+  /** 调试用：强制降水强度 1/2/3，'auto' 表示按天气码与降水量推断 */
+  const intensityOverride = ref('auto')
   const loading = ref(false)
   const error = ref('')
 
@@ -47,6 +49,13 @@ export const useSkyStore = defineStore('sky', () => {
   })
 
   const bucketLabel = computed(() => BUCKET_LABEL[bucket.value] || '多云')
+
+  /** 降水强度 1 小 / 2 中 / 3 大：晴、阴、雾也照算（用于云量微调） */
+  const intensity = computed(() => {
+    const forced = Number(intensityOverride.value)
+    if (forced >= 1 && forced <= 3) return forced
+    return weatherIntensity(weatherCode.value, context.value?.precipitation)
+  })
   /** 登录卡上展示的「城市 + 区」 */
   const placeLabel = computed(() => {
     const c = (city.value || '').replace(/市$/, '')
@@ -136,6 +145,8 @@ export const useSkyStore = defineStore('sky', () => {
     regions,
     manual,
     override,
+    intensityOverride,
+    intensity,
     loading,
     error,
     city,

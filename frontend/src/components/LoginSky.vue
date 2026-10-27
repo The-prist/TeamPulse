@@ -33,8 +33,13 @@ import {
   BUCKETS,
   CLOUD_PARAMS,
   cloudPalette,
+  cloudVisibility,
+  INTENSITY_FACTOR,
+  INTENSITY_LABEL,
   recolorSvg,
   skyPhase,
+  starDim,
+  sunDim,
 } from '@/utils/skyWeather'
 
 const CLOUD_RAW = [cloud1Raw, cloud2Raw, cloud3Raw, cloud4Raw, cloud5Raw, cloud6Raw, cloud7Raw]
@@ -67,7 +72,6 @@ const cloudList = ref([])
 const cloudEls = []
 import {
   beijingDateAtHour,
-  cloudAlpha,
   beijingHour,
   moonIllumination,
   moonPhaseName,
@@ -198,7 +202,14 @@ function preloadCloudImages() {
 
 function buildClouds() {
   refreshCloudPalette()
-  const params = CLOUD_PARAMS[currentWeatherBucket] || CLOUD_PARAMS.partly
+  const base = CLOUD_PARAMS[currentWeatherBucket] || CLOUD_PARAMS.partly
+  const inten = INTENSITY_FACTOR[skyStore.intensity] || INTENSITY_FACTOR[2]
+  const params = {
+    count: base.count + (base.count > 0 ? inten.clouds : 0),
+    size: base.size * inten.size,
+    alpha: base.alpha,
+    speed: base.speed,
+  }
   const list = []
 
   // ① 底层长云带：两张同样大小拼接，向右移动时无缝循环
@@ -299,13 +310,19 @@ function respawnCloud(c) {
 
 function weatherParticleCount(bucket) {
   const area = (width * height) / (1440 * 900)
-  if (bucket === 'rain' || bucket === 'thunder') return Math.round(220 * area)
-  if (bucket === 'snow') return Math.round(140 * area)
+  const factor = INTENSITY_FACTOR[skyStore.intensity] || INTENSITY_FACTOR[2]
+  if (bucket === 'rain' || bucket === 'thunder') {
+    return Math.round(200 * factor.particles * area)
+  }
+  if (bucket === 'snow') {
+    // 雪分大中小：小的稀疏细雪，大的密而大
+    return Math.round(120 * factor.particles * area)
+  }
   return 0
 }
 
 function rebuildParticles(bucket) {
-  particlesBucket = bucket
+  particlesBucket = `${bucket}|${skyStore.intensity}`
   const n = weatherParticleCount(bucket)
   particles = []
   for (let i = 0; i < n; i++) {
@@ -317,14 +334,16 @@ function rebuildParticles(bucket) {
 
 function makeParticle(bucket, scatterY) {
   const snow = bucket === 'snow'
-  const len = snow ? 0 : rand(10, 26)
+  const factor = INTENSITY_FACTOR[skyStore.intensity] || INTENSITY_FACTOR[2]
+  const len = snow ? 0 : rand(10, 26) * factor.particleSize
+  const sz = factor.particleSize
   return {
     x: rand(0, width),
     y: scatterY ? rand(0, height) : -rand(0, 60),
     // 雨落得快；雪是慢慢飘
-    vy: snow ? rand(0.35, 0.9) : rand(7, 13),
+    vy: snow ? rand(0.35, 0.9) * sz : rand(7, 13) * sz,
     vx: snow ? rand(-0.25, 0.25) : -rand(1.2, 2.4),
-    r: snow ? rand(0.8, 2.2) : 0,
+    r: snow ? rand(0.8, 2.2) * sz : 0,
     len,
     alpha: snow ? rand(0.45, 0.9) : rand(0.18, 0.42),
     sway: snow ? rand(0, Math.PI * 2) : 0,
@@ -333,7 +352,8 @@ function makeParticle(bucket, scatterY) {
 
 function stepWeather(dt) {
   const bucket = currentWeatherBucket
-  if (bucket !== particlesBucket) rebuildParticles(bucket)
+  const key = `${bucket}|${skyStore.intensity}`
+  if (key !== particlesBucket) rebuildParticles(bucket)
 
   const k = Math.min(dt, 32) / 16.67
   for (const p of particles) {
@@ -492,11 +512,15 @@ function refreshSky() {
   const rising = azimuth < 181
   palette = skyPalette(altitude, rising)
   // 天气压一层：阴天/雨天更灰、雾天更白，晴天保持通透
-  palette = adjustSky(palette, skyStore.bucket, skyStore.cloudCover)
+  palette = adjustSky(palette, skyStore.bucket, skyStore.cloudCover, skyPhase(altitude))
   sunCss = sunColor(altitude).css
-  sunAlpha = sunVisibility(altitude)
-  starsVisible = starAlpha(altitude)
-  cloudsVisible.value = cloudAlpha(altitude)
+  // 天气越差，太阳/月亮越看不见
+  const dim = sunDim(skyStore.bucket)
+  sunAlpha = sunVisibility(altitude) * dim
+  // 云多的时候星星基本看不到
+  starsVisible = starAlpha(altitude) * starDim(skyStore.bucket)
+  // 夜间云不会消失，只是压暗（晴天仍然是 0 朵）
+  cloudsVisible.value = cloudVisibility(skyStore.bucket, altitude)
 
   // 与月亮共用同一条圆弧
   const sunPos = arcPos(altitude, azimuth)
@@ -518,7 +542,7 @@ function refreshSky() {
   moonR = sunR * 0.92
   // 高度角 < -1.5° 时落到地平线下；白天月亮仍然可见，只是被天空压暗
   const dayFactor = 1 - 0.55 * clamp01((altitude + 4) / 14)
-  moonAlpha = Math.max(0, Math.min(1, (moonAlt + 1.5) / 4)) * dayFactor
+  moonAlpha = Math.max(0, Math.min(1, (moonAlt + 1.5) / 4)) * dayFactor * dim
   moonLabel.value = `${moonPhaseName(moonPhase)} ${(moonFrac * 100).toFixed(0)}%`
 
   if (moonOverride) {
@@ -698,6 +722,20 @@ function drawSky() {
 function drawSun() {
   if (sunAlpha <= 0.01) return
 
+  // 阴雨雪雷暴天：太阳基本看不见，只是一团被云透出的微光
+  if (sunAlpha < 0.14) {
+    const glow = ctx.createRadialGradient(sunX, sunY, sunR * 0.5, sunX, sunY, sunR * 2.8)
+    glow.addColorStop(0, `rgba(255, 240, 214, ${0.2 * sunAlpha})`)
+    glow.addColorStop(1, 'rgba(255, 240, 214, 0)')
+    ctx.fillStyle = glow
+    ctx.beginPath()
+    ctx.arc(sunX, sunY, sunR * 2.8, 0, Math.PI * 2)
+    ctx.fill()
+    return
+  }
+
+  if (sunAlpha <= 0.01) return
+
   // 太阳本身的颜色随高度角变化；地平线附近光晕更大更暖
   const glowR = sunR * (5.2 + (1 - clamp01(sunAlt / 25)) * 2.4)
   const g = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, glowR)
@@ -729,6 +767,18 @@ function drawSun() {
  */
 function drawMoon() {
   if (moonAlpha <= 0.01) return
+
+  // 阴雨雪雷暴天：月亮被云挡得只剩一点微光，画成清晰圆盘就不真实了
+  if (moonAlpha < 0.12) {
+    const faint = ctx.createRadialGradient(moonX, moonY, moonR * 0.6, moonX, moonY, moonR * 2.6)
+    faint.addColorStop(0, `rgba(214, 226, 244, ${0.16 * moonAlpha})`)
+    faint.addColorStop(1, 'rgba(214, 226, 244, 0)')
+    ctx.fillStyle = faint
+    ctx.beginPath()
+    ctx.arc(moonX, moonY, moonR * 2.6, 0, Math.PI * 2)
+    ctx.fill()
+    return
+  }
 
   const f = moonFrac
   const waxing = moonPhase < 0.5
@@ -933,13 +983,8 @@ function resize() {
   cachedGradient = null
 
   if (resized || !stars.length) buildStars()
-  if (resized || !cloudList.value.length) buildClouds()
-  // 天气档位或时段变化 → 换配色并重建云（含晴天的 0 朵）
-  const wantBucket = skyStore.bucket
-  const wantPhase = skyPhase(sunAlt)
-  if (wantBucket !== currentWeatherBucket || wantPhase !== currentPhase) {
-    currentPhase = wantPhase
-    refreshCloudPalette()
+  if (resized || !cloudList.value.length) {
+    currentPhase = skyPhase(sunAlt)
     buildClouds()
   }
   refreshSky()
@@ -952,6 +997,17 @@ function loop(ts) {
   const dt = last ? ts - last : 16.67
   last = ts
   refreshSky()
+
+  // 天气档位或时段变化 → 换云色并重建（含晴天的 0 朵）；放在主循环里，
+  // 因为拖时间滑块、切天气都不会触发 resize()
+  const wantBucket = skyStore.bucket
+  const wantPhase = skyPhase(sunAlt)
+  if (wantBucket !== currentWeatherBucket || wantPhase !== currentPhase) {
+    currentPhase = wantPhase
+    refreshCloudPalette()
+    buildClouds()
+  }
+
   stepStars(dt)
   stepClouds(dt)
   stepEvents(dt)
@@ -997,6 +1053,12 @@ const sliderValue = computed({
 function onWeatherChange(e) {
   skyStore.override = e.target.value
   refreshCloudPalette()
+  buildClouds()
+}
+
+/** 调试：手动指定降水强度（'auto' 用天气码/降水量推断） */
+function onIntensityChange(e) {
+  skyStore.intensityOverride = e.target.value
   buildClouds()
 }
 
@@ -1073,6 +1135,8 @@ onMounted(() => {
         temperature: skyStore.temperature,
         source: skyStore.source,
         cloudCount: cloudList.value.length,
+        intensity: skyStore.intensity,
+        intensityForced: skyStore.intensityOverride,
       }
     },
     setWeather(bucket) {
@@ -1152,6 +1216,16 @@ onBeforeUnmount(() => {
       <select class="dc-select" :value="skyStore.override" @change="onWeatherChange">
         <option value="auto">自动（{{ skyStore.bucketLabel }}）</option>
         <option v-for="b in BUCKETS" :key="b" :value="b">{{ BUCKET_LABEL[b] }}</option>
+      </select>
+    </div>
+
+    <div v-show="!collapsed" class="dc-row dc-weather">
+      <span class="dc-weather-label">强度</span>
+      <select class="dc-select" :value="String(skyStore.intensityOverride)" @change="onIntensityChange">
+        <option value="auto">自动（{{ INTENSITY_LABEL[skyStore.intensity] }}）</option>
+        <option value="1">小</option>
+        <option value="2">中</option>
+        <option value="3">大</option>
       </select>
     </div>
 
