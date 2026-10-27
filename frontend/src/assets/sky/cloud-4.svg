@@ -1,38 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 180" width="360" height="180" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="9.5 68.1 492.9 136.9">
   <defs>
-    <linearGradient id="cloudGrad4" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="180">
-      <stop offset="0" stop-color="#ffffff"/>
-      <stop offset="0.5" stop-color="#f8fdff"/>
-      <stop offset="0.78" stop-color="#e8f5fe"/>
-      <stop offset="1" stop-color="#cfe7f9"/>
+    <linearGradient id="base" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#eaf8ff"/>
+      <stop offset="1" stop-color="#b8e4ff"/>
     </linearGradient>
-    <mask id="cloudMask4" maskUnits="userSpaceOnUse" x="0" y="0" width="360" height="180">
-      <g fill="#ffffff">
-        <circle cx="190.0" cy="96.0" r="54.0"/>
-        <circle cx="258.0" cy="100.0" r="50.0"/>
-        <circle cx="116.0" cy="102.0" r="48.0"/>
-        <circle cx="144.0" cy="124.0" r="44.0"/>
-        <circle cx="302.0" cy="112.0" r="38.0"/>
-        <circle cx="48.0" cy="114.0" r="36.0"/>
-        <circle cx="208.0" cy="136.0" r="34.0"/>
-        <rect x="24.0" y="135.0" width="304.0" height="30" rx="15.0"/>
-      </g>
-    </mask>
-    <filter id="soft4" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="3.2"/>
-    </filter>
+    <linearGradient id="white" x1="0" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#f4fbff"/>
+    </linearGradient>
   </defs>
-  <g mask="url(#cloudMask4)">
-    <rect x="0" y="0" width="360" height="180" fill="url(#cloudGrad4)"/>
-    <g stroke="#a9cfe9" stroke-width="5" opacity="0.42" fill="none" filter="url(#soft4)">
-      <circle cx="190.0" cy="96.0" r="54.0"/>
-      <circle cx="258.0" cy="100.0" r="50.0"/>
-      <circle cx="116.0" cy="102.0" r="48.0"/>
-      <circle cx="144.0" cy="124.0" r="44.0"/>
-      <circle cx="302.0" cy="112.0" r="38.0"/>
-      <circle cx="48.0" cy="114.0" r="36.0"/>
-      <circle cx="208.0" cy="136.0" r="34.0"/>
-    </g>
-    <ellipse cx="176.0" cy="156.0" rx="127.7" ry="18.0" fill="#a8cde9" opacity="0.22"/>
-  </g>
+  
+<path d="M20 198 C5 192 11 180 29 178 C42 175 50 179 58 172 C54 151 70 138 91 139 C93 116 113 101 135 105 C145 78 166 65 187 72 C207 78 218 98 215 118 C239 106 262 120 269 140 C291 132 312 144 318 161 C343 153 365 165 372 182 C406 178 454 186 490 191 C505 194 504 202 485 203 L32 203 Z" fill="url(#base)"/>
+<path d="M76 166 C63 149 73 129 94 125 C100 104 118 93 139 100 C146 77 165 70 184 78 C204 87 208 108 201 126 C221 119 244 130 245 149 C243 166 225 176 206 173 C191 190 165 187 152 172 C131 185 102 181 91 166 Z" fill="url(#white)"/>
+<path d="M214 176 C202 160 213 143 231 140 C246 122 270 124 283 141 C295 156 289 174 279 182 C300 171 325 181 328 194 L210 198 Z" fill="url(#white)"/>
+
 </svg>

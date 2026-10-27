@@ -1,44 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 548 340" width="548" height="340" fill="none">
-  <defs>
-    <linearGradient id="cloudGrad3" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="340">
-      <stop offset="0" stop-color="#ffffff"/>
-      <stop offset="0.5" stop-color="#f8fdff"/>
-      <stop offset="0.78" stop-color="#e8f5fe"/>
-      <stop offset="1" stop-color="#cfe7f9"/>
+<svg id="svgCanvas" viewBox="22 139.8 756 220.3" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" style="transform-origin: 0px 0px; cursor: default; transform: translate(175.078px, 123.067px) scale(0.9);">
+                            <g id="svgLayers"><g transform="translate(4.71, 46.93) scale(1.5407)"><defs>
+    <linearGradient id="base" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#eaf8ff"/>
+      <stop offset="1" stop-color="#b8e4ff"/>
     </linearGradient>
-    <mask id="cloudMask3" maskUnits="userSpaceOnUse" x="0" y="0" width="548" height="340">
-      <g fill="#ffffff">
-        <circle cx="342.0" cy="224.0" r="86.0"/>
-        <circle cx="252.0" cy="214.0" r="82.0"/>
-        <circle cx="244.0" cy="230.0" r="80.0"/>
-        <circle cx="418.0" cy="234.0" r="76.0"/>
-        <circle cx="148.0" cy="244.0" r="66.0"/>
-        <circle cx="478.0" cy="252.0" r="58.0"/>
-        <circle cx="172.0" cy="258.0" r="56.0"/>
-        <circle cx="252.0" cy="142.0" r="56.0"/>
-        <circle cx="330.0" cy="252.0" r="52.0"/>
-        <circle cx="62.0" cy="260.0" r="50.0"/>
-        <rect x="24.0" y="295.0" width="500.0" height="30" rx="15.0"/>
-      </g>
-    </mask>
-    <filter id="soft3" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="3.2"/>
-    </filter>
-  </defs>
-  <g mask="url(#cloudMask3)">
-    <rect x="0" y="0" width="548" height="340" fill="url(#cloudGrad3)"/>
-    <g stroke="#a9cfe9" stroke-width="5" opacity="0.42" fill="none" filter="url(#soft3)">
-      <circle cx="342.0" cy="224.0" r="86.0"/>
-      <circle cx="252.0" cy="214.0" r="82.0"/>
-      <circle cx="244.0" cy="230.0" r="80.0"/>
-      <circle cx="418.0" cy="234.0" r="76.0"/>
-      <circle cx="148.0" cy="244.0" r="66.0"/>
-      <circle cx="478.0" cy="252.0" r="58.0"/>
-      <circle cx="172.0" cy="258.0" r="56.0"/>
-      <circle cx="252.0" cy="142.0" r="56.0"/>
-      <circle cx="330.0" cy="252.0" r="52.0"/>
-      <circle cx="62.0" cy="260.0" r="50.0"/>
-    </g>
-    <ellipse cx="274.0" cy="316.0" rx="210.0" ry="18.0" fill="#a8cde9" opacity="0.22"/>
-  </g>
-</svg>
+    <linearGradient id="white" x1="0" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#f4fbff"/>
+    </linearGradient>
+  </defs><path d="M22 195 C5 190 12 178 34 176 C47 175 56 179 65 171 C62 153 78 137 99 138 C104 115 123 100 147 103 C153 72 178 55 203 64 C226 72 238 94 234 115 C256 104 279 117 287 137 C309 129 329 140 337 157 C360 149 383 164 389 180 C420 177 457 184 491 190 C506 194 503 201 485 202 L34 202 Z" fill="url(#base)" class="" transform="translate(256.56350231170654 0) scale(-1 1) translate(-256.56350231170654 0) translate(256.56350231170654 0) scale(-1 1) translate(-256.56350231170654 0) rotate(-90 256.56350231170654 131.79859161376953) rotate(-90 256.56350231170654 131.79859161376953) rotate(-90 256.56350231170654 131.79859161376953) rotate(-90 256.56350231170654 131.79859161376953) translate(256.56350231170654 0) scale(-1 1) translate(-256.56350231170654 0)"/><path d="M82 164 C68 147 76 127 97 122 C101 101 119 88 140 95 C147 71 170 62 191 73 C211 84 216 104 207 123 C229 113 251 126 251 146 C249 164 229 173 210 169 C192 188 164 184 151 169 C131 181 103 180 92 165 Z" fill="url(#white)" class="" data-tx="104.9493408203125" data-ty="13.516204833984375" transform="translate(104.9493408203125, 13.516204833984375)"/><path d="M207 176 C201 157 214 143 233 140 C246 121 271 123 284 139 C296 154 291 171 279 181 C302 168 326 179 329 192 L206 197 Z" fill="url(#white)" class="" data-tx="131.1866455078125" data-ty="-15.90142822265625" transform="translate(131.1866455078125, -15.90142822265625)"/></g><path d="M82 164 C68 147 76 127 97 122 C101 101 119 88 140 95 C147 71 170 62 191 73 C211 84 216 104 207 123 C229 113 251 126 251 146 C249 164 229 173 210 169 C192 188 164 184 151 169 C131 181 103 180 92 165 Z" fill="url(#white)" class="" data-tx="78.48779296875" data-ty="160.10177612304688" transform="translate(78.48779296875, 160.10177612304688)" stroke-width="0" opacity="1"/></g>
+                        </svg>

@@ -1,46 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 300" width="620" height="300" fill="none">
-  <defs>
-    <linearGradient id="cloudGrad1" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="300">
-      <stop offset="0" stop-color="#ffffff"/>
-      <stop offset="0.5" stop-color="#f8fdff"/>
-      <stop offset="0.78" stop-color="#e8f5fe"/>
-      <stop offset="1" stop-color="#cfe7f9"/>
+<svg id="svgCanvas" viewBox="23.4 155.3 756 245.2" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" style="transform-origin: 0px 0px; cursor: default; transform: translate(115.377px, 139.41px) scale(0.7);">
+                            <g id="svgLayers"><g transform="translate(7.31, 63.41) scale(1.5283)"><defs>
+    <linearGradient id="base" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#eaf8ff"/>
+      <stop offset="1" stop-color="#b8e4ff"/>
     </linearGradient>
-    <mask id="cloudMask1" maskUnits="userSpaceOnUse" x="0" y="0" width="620" height="300">
-      <g fill="#ffffff">
-        <circle cx="362.0" cy="178.0" r="92.0"/>
-        <circle cx="262.0" cy="182.0" r="88.0"/>
-        <circle cx="448.0" cy="186.0" r="84.0"/>
-        <circle cx="160.0" cy="196.0" r="74.0"/>
-        <circle cx="212.0" cy="200.0" r="74.0"/>
-        <circle cx="510.0" cy="204.0" r="66.0"/>
-        <circle cx="312.0" cy="174.0" r="66.0"/>
-        <circle cx="68.0" cy="214.0" r="56.0"/>
-        <circle cx="132.0" cy="224.0" r="54.0"/>
-        <circle cx="558.0" cy="220.0" r="50.0"/>
-        <circle cx="384.0" cy="212.0" r="50.0"/>
-        <rect x="24.0" y="255.0" width="572.0" height="30" rx="15.0"/>
-      </g>
-    </mask>
-    <filter id="soft1" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="3.2"/>
-    </filter>
-  </defs>
-  <g mask="url(#cloudMask1)">
-    <rect x="0" y="0" width="620" height="300" fill="url(#cloudGrad1)"/>
-    <g stroke="#a9cfe9" stroke-width="5" opacity="0.42" fill="none" filter="url(#soft1)">
-      <circle cx="362.0" cy="178.0" r="92.0"/>
-      <circle cx="262.0" cy="182.0" r="88.0"/>
-      <circle cx="448.0" cy="186.0" r="84.0"/>
-      <circle cx="160.0" cy="196.0" r="74.0"/>
-      <circle cx="212.0" cy="200.0" r="74.0"/>
-      <circle cx="510.0" cy="204.0" r="66.0"/>
-      <circle cx="312.0" cy="174.0" r="66.0"/>
-      <circle cx="68.0" cy="214.0" r="56.0"/>
-      <circle cx="132.0" cy="224.0" r="54.0"/>
-      <circle cx="558.0" cy="220.0" r="50.0"/>
-      <circle cx="384.0" cy="212.0" r="50.0"/>
-    </g>
-    <ellipse cx="310.0" cy="276.0" rx="240.2" ry="18.0" fill="#a8cde9" opacity="0.22"/>
-  </g>
-</svg>
+    <linearGradient id="white" x1="0" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#f4fbff"/>
+    </linearGradient>
+  </defs><path d="M22 196 C5 192 8 179 28 176 C42 174 48 177 57 173 C54 155 68 139 89 137 C94 112 114 92 140 91 C148 56 178 37 207 45 C231 49 246 69 249 91 C273 85 297 99 306 120 C329 111 352 124 359 146 C385 140 407 154 414 175 C441 174 470 179 494 187 C509 192 504 199 488 201 L35 201 Z" fill="url(#base)" class="" data-tx="-514.8479766845703" data-ty="18.246856689453125" transform="scale(-1 1) translate(-514.8479766845703, 18.246856689453125)"/><path d="M73 163 C54 145 66 121 89 116 C92 94 111 78 134 80 C142 51 166 38 189 48 C212 57 222 77 218 98 C242 94 263 111 263 132 C260 151 241 162 220 165 C205 184 175 185 157 171 C136 184 107 181 97 165 Z" fill="url(#white)" class="" data-tx="122.31015014648438" data-ty="27.498023986816406" transform="translate(122.31015014648438, 27.498023986816406)"/><path d="M205 174 C191 155 205 132 226 127 C240 106 266 106 281 121 C294 133 293 150 286 164 C307 154 329 165 331 181 C332 193 317 198 299 198 L194 198 C193 188 198 180 205 174 Z" fill="url(#white)" class="" data-tx="-665.4739837646484" data-ty="0.357757568359375" transform="scale(-1 1) translate(-665.4739837646484, 0.357757568359375)"/></g></g>
+                        </svg>

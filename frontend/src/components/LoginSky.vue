@@ -18,15 +18,16 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
-// 矢量云素材（SVG，自绘，无第三方版权）：扁平泡泡风格
+// 矢量云素材（SVG）：来自项目方提供的 7 个变体，白团 + 横向蓝色雾带
 import cloud1 from '@/assets/sky/cloud-1.svg'
 import cloud2 from '@/assets/sky/cloud-2.svg'
 import cloud3 from '@/assets/sky/cloud-3.svg'
 import cloud4 from '@/assets/sky/cloud-4.svg'
 import cloud5 from '@/assets/sky/cloud-5.svg'
 import cloud6 from '@/assets/sky/cloud-6.svg'
+import cloud7 from '@/assets/sky/cloud-7.svg'
 
-const CLOUD_SRC = [cloud1, cloud2, cloud3, cloud4, cloud5, cloud6]
+const CLOUD_SRC = [cloud1, cloud2, cloud3, cloud4, cloud5, cloud6, cloud7]
 const cloudImages = []
 /** 模板用的云列表（只放渲染需要的最小字段） */
 const cloudList = ref([])
@@ -132,14 +133,14 @@ function makeStar() {
  */
 /** 云落点：只在可见区域（顶部带 / 左右留白），避免被中间卡片挡住 */
 function pickCloudSpot(region) {
-  if (region === 'left') return { x: rand(width * 0.09, width * 0.17), y: rand(height * 0.26, height * 0.7) }
-  if (region === 'right') return { x: rand(width * 0.83, width * 0.91), y: rand(height * 0.26, height * 0.7) }
-  return { x: rand(width * 0.12, width * 0.88), y: rand(height * 0.07, height * 0.19) }
+  if (region === 'left') return { x: rand(width * 0.06, width * 0.12), y: rand(height * 0.28, height * 0.68) }
+  if (region === 'right') return { x: rand(width * 0.88, width * 0.94), y: rand(height * 0.28, height * 0.68) }
+  return { x: rand(width * 0.12, width * 0.88), y: rand(height * 0.1, height * 0.21) }
 }
 
 function buildClouds() {
-  const n = Math.max(4, Math.min(6, Math.round(width / 340)))
-  const plan = ['top', 'top', 'left', 'right', 'top', 'left'].slice(0, n)
+  const n = Math.max(5, Math.min(7, Math.round(width / 240)))
+  const plan = ['top', 'top', 'left', 'right', 'top', 'right', 'left'].slice(0, n)
 
   const list = []
   const usedIdx = new Set()
@@ -152,7 +153,7 @@ function buildClouds() {
 
     const img = cloudImages[imgIndex]
     const ratio = img?.naturalHeight ? img.naturalHeight / img.naturalWidth : 0.5
-    const targetW = region === 'top' ? rand(190, 290) : rand(230, 330)
+    const targetW = region === 'top' ? rand(200, 300) : rand(200, 270)
 
     let spot = null
     for (let tries = 0; tries < 8; tries++) {
@@ -170,7 +171,7 @@ function buildClouds() {
       hy: spot.y,
       w: targetW,
       h: targetW * ratio,
-      alpha: rand(0.9, 1),
+      alpha: rand(0.88, 0.98),
       vx: rand(-0.014, 0.014),
       vy: rand(-0.005, 0.005),
       rx: rand(60, 140),
