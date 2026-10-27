@@ -81,6 +81,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // 登录 / 注册
                         .requestMatchers("/api/v1/auth/**").permitAll()
+                        // 登录页天空：访客位置 + 天气 + 行政区划树（无业务数据）
+                        .requestMatchers("/api/v1/public/**").permitAll()
                         // 物联网设备侧（走 HMAC 签名，不走 JWT）
                         .requestMatchers("/iot/**").permitAll()
                         // 健康检查与接口文档

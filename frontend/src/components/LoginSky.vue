@@ -18,16 +18,49 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
-// 矢量云素材（SVG）：来自项目方提供的 7 个变体，白团 + 横向蓝色雾带
-import cloud1 from '@/assets/sky/cloud-1.svg'
-import cloud2 from '@/assets/sky/cloud-2.svg'
-import cloud3 from '@/assets/sky/cloud-3.svg'
-import cloud4 from '@/assets/sky/cloud-4.svg'
-import cloud5 from '@/assets/sky/cloud-5.svg'
-import cloud6 from '@/assets/sky/cloud-6.svg'
-import cloud7 from '@/assets/sky/cloud-7.svg'
+// 矢量云素材（SVG 原文）：运行时按「时段 × 天气」重上色，因此不需要为每种天气准备素材
+import cloud1Raw from '@/assets/sky/cloud-1.svg?raw'
+import cloud2Raw from '@/assets/sky/cloud-2.svg?raw'
+import cloud3Raw from '@/assets/sky/cloud-3.svg?raw'
+import cloud4Raw from '@/assets/sky/cloud-4.svg?raw'
+import cloud5Raw from '@/assets/sky/cloud-5.svg?raw'
+import cloud6Raw from '@/assets/sky/cloud-6.svg?raw'
+import cloud7Raw from '@/assets/sky/cloud-7.svg?raw'
+import { useSkyStore } from '@/stores/sky'
+import {
+  adjustSky,
+  BUCKET_LABEL,
+  BUCKETS,
+  CLOUD_PARAMS,
+  cloudPalette,
+  recolorSvg,
+  skyPhase,
+} from '@/utils/skyWeather'
 
-const CLOUD_SRC = [cloud1, cloud2, cloud3, cloud4, cloud5, cloud6, cloud7]
+const CLOUD_RAW = [cloud1Raw, cloud2Raw, cloud3Raw, cloud4Raw, cloud5Raw, cloud6Raw, cloud7Raw]
+const skyStore = useSkyStore()
+
+/** 当前生效的云图 URL 列表（颜色随天气/时段变化），按 key 缓存避免反复编码 */
+const cloudSrcCache = new Map()
+let currentCloudSrc = []
+let currentWeatherBucket = 'partly'
+let currentPhase = 'day'
+
+function refreshCloudPalette() {
+  const bucket = skyStore.bucket
+  const palette = cloudPalette(bucket, currentPhase)
+  const key = `${bucket}|${currentPhase}`
+  if (cloudSrcCache.has(key)) {
+    currentCloudSrc = cloudSrcCache.get(key)
+    currentWeatherBucket = bucket
+    return
+  }
+  const urls = CLOUD_RAW.map((raw) => recolorSvg(raw, palette.base, palette.body))
+  cloudSrcCache.set(key, urls)
+  currentCloudSrc = urls
+  currentWeatherBucket = bucket
+}
+
 const cloudImages = []
 /** 模板用的云列表（只放渲染需要的最小字段） */
 const cloudList = ref([])
@@ -101,8 +134,14 @@ const moonLabel = ref('')
 let moonOverride = null
 
 const mouse = { x: -9999, y: -9999, active: false }
-/** 风速：px/帧（60fps 基准），正数向右 */
+/** 风速：px/帧（60fps 基准），正数向右；实际速度还要乘天气系数 */
 const WIND = 0.16
+/** 天气特效粒子（雨丝 / 雪点） */
+let particles = []
+let particlesBucket = ''
+/** 雷电闪光强度 0~1 */
+let flash = 0
+let flashTimer = 0
 /** 长云带的滚动偏移（0 ~ bandW 循环） */
 let bandOffset = 0
 const rand = (a, b) => a + Math.random() * (b - a)
@@ -142,7 +181,24 @@ function pickCloudSpot(region) {
   return { x: rand(width * 0.12, width * 0.88), y: rand(height * 0.17, height * 0.27) }
 }
 
+/** 把当前配色的云图塞进 Image 缓存，供取宽高比用 */
+function preloadCloudImages() {
+  refreshCloudPalette()
+  currentCloudSrc.forEach((src, i) => {
+    const img = new Image()
+    img.onload = () => {
+      cloudList.value.forEach((c) => {
+        if (c.imgIndex === i) c.h = c.w * (img.naturalHeight / img.naturalWidth)
+      })
+    }
+    img.src = src
+    cloudImages[i] = img
+  })
+}
+
 function buildClouds() {
+  refreshCloudPalette()
+  const params = CLOUD_PARAMS[currentWeatherBucket] || CLOUD_PARAMS.partly
   const list = []
 
   // ① 底层长云带：两张同样大小拼接，向右移动时无缝循环
@@ -150,28 +206,31 @@ function buildClouds() {
   const bandRatio = bandImg?.naturalHeight ? bandImg.naturalHeight / bandImg.naturalWidth : 0.157
   const bandW = width * 1.25
   bandOffset = 0
-  for (let i = 0; i < 2; i++) {
-    list.push({
-      src: CLOUD_SRC[6],
-      imgIndex: 6,
-      isBand: true,
-      bandIndex: i,
-      x: width / 2 - i * bandW,
-      y: height * 0.95,
-      hx: width / 2,
-      hy: height * 0.95,
-      w: bandW,
-      h: bandW * bandRatio,
-      alpha: 0.95,
-      vx: 0,
-      vy: 0,
-      rx: 0,
-      ry: 0,
-    })
+  if (params.count > 0) {
+    for (let i = 0; i < 2; i++) {
+      list.push({
+        src: currentCloudSrc[6],
+        imgIndex: 6,
+        isBand: true,
+        bandIndex: i,
+        x: width / 2 - i * bandW,
+        y: height * 0.95,
+        hx: width / 2,
+        hy: height * 0.95,
+        w: bandW,
+        h: bandW * bandRatio,
+        alpha: 0.95 * params.alpha,
+        vx: 0,
+        vy: 0,
+        rx: 0,
+        ry: 0,
+      })
+    }
   }
 
-  // ② 单体云：放大，分布在上方与左右留白
-  const plan = ['top', 'left', 'right', 'top', 'left']
+  // ② 单体云：数量由天气决定（晴 = 0 朵）
+  const singles = Math.max(0, params.count - (params.count >= 5 ? 1 : 0))
+  const plan = ['top', 'left', 'right', 'top', 'left', 'right', 'top'].slice(0, singles)
   const usedIdx = new Set([6])
   for (const region of plan) {
     let imgIndex = Math.floor(Math.random() * 6)
@@ -180,12 +239,13 @@ function buildClouds() {
 
     const img = cloudImages[imgIndex]
     const ratio = img?.naturalHeight ? img.naturalHeight / img.naturalWidth : 0.38
-    const targetW = region === 'top' ? rand(320, 440) : rand(270, 360)
+    const baseW = region === 'top' ? rand(320, 440) : rand(270, 360)
+    const targetW = baseW * params.size
 
     let spot = null
     for (let tries = 0; tries < 30; tries++) {
       const candidate = pickCloudSpot(region)
-      if (!list.some((c) => !c.isBand && Math.hypot(c.hx - candidate.x, c.hy - candidate.y) < 380)) {
+      if (!list.some((c) => !c.isBand && Math.hypot(c.hx - candidate.x, c.hy - candidate.y) < 380 * params.size)) {
         spot = candidate
         break
       }
@@ -193,7 +253,7 @@ function buildClouds() {
     if (!spot) continue
 
     list.push({
-      src: CLOUD_SRC[imgIndex],
+      src: currentCloudSrc[imgIndex],
       imgIndex,
       region,
       x: spot.x,
@@ -202,7 +262,7 @@ function buildClouds() {
       hy: spot.y,
       w: targetW,
       h: targetW * ratio,
-      alpha: rand(0.9, 1),
+      alpha: rand(0.9, 1) * params.alpha,
       vx: 0,
       vy: 0,
       rx: 0,
@@ -216,21 +276,128 @@ function buildClouds() {
 
 /** 给一朵云换新形象，并从左侧重新进场 */
 function respawnCloud(c) {
+  const params = CLOUD_PARAMS[currentWeatherBucket] || CLOUD_PARAMS.partly
   const imgIndex = Math.floor(Math.random() * 6)
   const img = cloudImages[imgIndex]
   const ratio = img?.naturalHeight ? img.naturalHeight / img.naturalWidth : 0.38
-  const targetW = c.region === 'top' ? rand(320, 440) : rand(270, 360)
+  const baseW = c.region === 'top' ? rand(320, 440) : rand(270, 360)
+  const targetW = baseW * params.size
   const spot = pickCloudSpot(c.region)
 
-  c.src = CLOUD_SRC[imgIndex]
+  c.src = currentCloudSrc[imgIndex]
   c.imgIndex = imgIndex
   c.w = targetW
   c.h = targetW * ratio
-  c.alpha = rand(0.9, 1)
+  c.alpha = rand(0.9, 1) * params.alpha
   c.x = -c.w / 2 - rand(40, 320)
   c.y = spot.y
   c.hx = spot.x
   c.hy = spot.y
+}
+
+/* ------------------------------------------------------------------ 雨 / 雪 / 雾 / 雷电 */
+
+function weatherParticleCount(bucket) {
+  const area = (width * height) / (1440 * 900)
+  if (bucket === 'rain' || bucket === 'thunder') return Math.round(220 * area)
+  if (bucket === 'snow') return Math.round(140 * area)
+  return 0
+}
+
+function rebuildParticles(bucket) {
+  particlesBucket = bucket
+  const n = weatherParticleCount(bucket)
+  particles = []
+  for (let i = 0; i < n; i++) {
+    particles.push(makeParticle(bucket, true))
+  }
+  flash = 0
+  flashTimer = bucket === 'thunder' ? rand(2, 6) : 0
+}
+
+function makeParticle(bucket, scatterY) {
+  const snow = bucket === 'snow'
+  const len = snow ? 0 : rand(10, 26)
+  return {
+    x: rand(0, width),
+    y: scatterY ? rand(0, height) : -rand(0, 60),
+    // 雨落得快；雪是慢慢飘
+    vy: snow ? rand(0.35, 0.9) : rand(7, 13),
+    vx: snow ? rand(-0.25, 0.25) : -rand(1.2, 2.4),
+    r: snow ? rand(0.8, 2.2) : 0,
+    len,
+    alpha: snow ? rand(0.45, 0.9) : rand(0.18, 0.42),
+    sway: snow ? rand(0, Math.PI * 2) : 0,
+  }
+}
+
+function stepWeather(dt) {
+  const bucket = currentWeatherBucket
+  if (bucket !== particlesBucket) rebuildParticles(bucket)
+
+  const k = Math.min(dt, 32) / 16.67
+  for (const p of particles) {
+    p.y += p.vy * k
+    p.x += (p.vx + (p.sway ? Math.sin(p.sway + p.y * 0.02) * 0.5 : 0)) * k
+    if (p.y > height + 30 || p.x < -40) {
+      const fresh = makeParticle(bucket, false)
+      Object.assign(p, fresh)
+    }
+  }
+
+  // 雷电：隔几秒闪一下
+  if (bucket === 'thunder') {
+    flashTimer -= dt / 1000
+    if (flashTimer <= 0) {
+      flash = 1
+      flashTimer = rand(4, 11)
+    }
+    flash = Math.max(0, flash - dt / 420)
+  } else {
+    flash = 0
+  }
+}
+
+function drawWeather() {
+  const bucket = currentWeatherBucket
+
+  // 雾：底部一层白雾，越往下越厚
+  if (bucket === 'fog') {
+    const g = ctx.createLinearGradient(0, height * 0.45, 0, height)
+    g.addColorStop(0, 'rgba(238, 244, 249, 0)')
+    g.addColorStop(0.55, 'rgba(238, 244, 249, 0.42)')
+    g.addColorStop(1, 'rgba(240, 246, 251, 0.72)')
+    ctx.fillStyle = g
+    ctx.fillRect(0, 0, width, height)
+  }
+
+  // 雨丝 / 雪点
+  if (particles.length) {
+    ctx.save()
+    ctx.lineCap = 'round'
+    for (const p of particles) {
+      if (p.len) {
+        ctx.strokeStyle = `rgba(214, 232, 245, ${p.alpha})`
+        ctx.lineWidth = 1.1
+        ctx.beginPath()
+        ctx.moveTo(p.x, p.y)
+        ctx.lineTo(p.x + p.vx * 0.6, p.y + p.len)
+        ctx.stroke()
+      } else {
+        ctx.fillStyle = `rgba(248, 252, 255, ${p.alpha})`
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
+        ctx.fill()
+      }
+    }
+    ctx.restore()
+  }
+
+  // 雷电闪光：整屏泛白一下
+  if (flash > 0.01) {
+    ctx.fillStyle = `rgba(236, 244, 255, ${flash * 0.5})`
+    ctx.fillRect(0, 0, width, height)
+  }
 }
 
 function stepClouds(dt) {
@@ -238,10 +405,12 @@ function stepClouds(dt) {
   const list = cloudList.value
 
   // 长云带：整体偏移循环（两张图交替拼接 → 视觉无缝）
+  const speedMul = (CLOUD_PARAMS[currentWeatherBucket] || CLOUD_PARAMS.partly).speed
+  const wind = WIND * speedMul
   const bands = list.filter((c) => c.isBand)
   if (bands.length === 2) {
     const bw = bands[0].w
-    bandOffset = (bandOffset + WIND * k) % bw
+    bandOffset = (bandOffset + wind * k) % bw
     bands[0].x = width / 2 + bandOffset
     bands[1].x = bands[0].x - bw
   }
@@ -249,7 +418,7 @@ function stepClouds(dt) {
   // 单体云：向右缓慢飘，完全移出右侧后从左侧换形状重新进场
   for (const c of list) {
     if (c.isBand) continue
-    c.x += WIND * k
+    c.x += wind * k
     if (c.x - c.w / 2 > width + 20) respawnCloud(c)
   }
 
@@ -322,6 +491,8 @@ function refreshSky() {
   // 上午 / 下午：按方位角判断（正南 180° 之前算上午），比按 12 点更贴近现实
   const rising = azimuth < 181
   palette = skyPalette(altitude, rising)
+  // 天气压一层：阴天/雨天更灰、雾天更白，晴天保持通透
+  palette = adjustSky(palette, skyStore.bucket, skyStore.cloudCover)
   sunCss = sunColor(altitude).css
   sunAlpha = sunVisibility(altitude)
   starsVisible = starAlpha(altitude)
@@ -740,6 +911,7 @@ function draw() {
   drawMoon()
   drawStars()
   drawEvents()
+  drawWeather()
 }
 
 /* ------------------------------------------------------------------ 生命周期 */
@@ -762,6 +934,14 @@ function resize() {
 
   if (resized || !stars.length) buildStars()
   if (resized || !cloudList.value.length) buildClouds()
+  // 天气档位或时段变化 → 换配色并重建云（含晴天的 0 朵）
+  const wantBucket = skyStore.bucket
+  const wantPhase = skyPhase(sunAlt)
+  if (wantBucket !== currentWeatherBucket || wantPhase !== currentPhase) {
+    currentPhase = wantPhase
+    refreshCloudPalette()
+    buildClouds()
+  }
   refreshSky()
   if (!nextEventAt) scheduleNextEvent(performance.now())
   draw()
@@ -775,6 +955,7 @@ function loop(ts) {
   stepStars(dt)
   stepClouds(dt)
   stepEvents(dt)
+  stepWeather(dt)
   draw()
   raf = requestAnimationFrame(loop)
 }
@@ -812,6 +993,13 @@ const sliderValue = computed({
   set: (v) => { previewHour.value = Number(v) },
 })
 
+/** 调试：手动指定天气档位（'auto' 跟随真实天气） */
+function onWeatherChange(e) {
+  skyStore.override = e.target.value
+  refreshCloudPalette()
+  buildClouds()
+}
+
 function onSliderInput(e) {
   dragging.value = true
   previewHour.value = Number(e.target.value)
@@ -842,16 +1030,14 @@ function setHour(h) {
 let ro = null
 
 onMounted(() => {
-  // 预加载矢量云（构建后被内联成 data URI），加载完成后回填真实宽高比
-  CLOUD_SRC.forEach((src, i) => {
-    const img = new Image()
-    img.onload = () => {
-      cloudList.value.forEach((c) => {
-        if (c.imgIndex === i) c.h = c.w * (img.naturalHeight / img.naturalWidth)
-      })
-    }
-    img.src = src
-    cloudImages[i] = img
+  // 预加载当前配色下的云图（data URI），加载完成后回填真实宽高比
+  preloadCloudImages()
+
+  // 登录页一进来就取一次位置与天气；失败也只是回落多云，不影响渲染
+  skyStore.load().then(() => {
+    refreshCloudPalette()
+    preloadCloudImages()
+    buildClouds()
   })
 
   resize()
@@ -876,6 +1062,24 @@ onMounted(() => {
     get sky() { return { top: palette.top, mid: palette.mid, bottom: palette.bottom } },
     get clouds() { return cloudList.value.map((c) => ({ x: Math.round(c.x), y: Math.round(c.y), w: Math.round(c.w), imgIndex: c.imgIndex })) },
     get cloudsVisible() { return cloudsVisible.value },
+    get weather() {
+      return {
+        bucket: skyStore.bucket,
+        forced: skyStore.override,
+        code: skyStore.weatherCode,
+        cloudCover: skyStore.cloudCover,
+        city: skyStore.city,
+        district: skyStore.district,
+        temperature: skyStore.temperature,
+        source: skyStore.source,
+        cloudCount: cloudList.value.length,
+      }
+    },
+    setWeather(bucket) {
+      skyStore.override = bucket || 'auto'
+      refreshCloudPalette()
+      buildClouds()
+    },
     get __cloudImages() { return cloudImages.map((i) => (i ? { complete: i.complete, w: i.naturalWidth, h: i.naturalHeight, src: String(i.src).slice(0, 40) } : null)) },
     get starsVisible() { return starsVisible },
     get moon() { return { altitude: moonAlt, azimuth: moonAz, fraction: moonFrac, phase: moonPhase, x: moonX, y: moonY, alpha: moonAlpha } },
@@ -943,6 +1147,14 @@ onBeforeUnmount(() => {
       <span class="dc-sun">高度 {{ moonAlt.toFixed(0) }}°　方位 {{ moonAz.toFixed(0) }}°</span>
     </div>
 
+    <div v-show="!collapsed" class="dc-row dc-weather">
+      <span class="dc-weather-label">天气</span>
+      <select class="dc-select" :value="skyStore.override" @change="onWeatherChange">
+        <option value="auto">自动（{{ skyStore.bucketLabel }}）</option>
+        <option v-for="b in BUCKETS" :key="b" :value="b">{{ BUCKET_LABEL[b] }}</option>
+      </select>
+    </div>
+
     <div v-show="!collapsed" class="dc-slider">
       <input
         type="range"
@@ -1004,7 +1216,7 @@ onBeforeUnmount(() => {
   left: 18px;
   top: 18px;
   z-index: 40;
-  width: 268px;
+  width: 224px;
   padding: 12px 14px 10px;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.22);
@@ -1085,6 +1297,35 @@ onBeforeUnmount(() => {
 .dc-moon-label {
   color: #ffd9a0;
   font-weight: 600;
+}
+
+.dc-weather {
+  align-items: center;
+  gap: 8px;
+}
+
+.dc-weather-label {
+  font-size: 11px;
+  opacity: 0.75;
+  flex: none;
+}
+
+.dc-select {
+  flex: 1;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #e8f1fb;
+  font-size: 11.5px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  outline: none;
+  cursor: pointer;
+}
+
+.dc-select option {
+  color: #0f172a;
+  background: #ffffff;
 }
 
 .dc-slider input[type='range'] {

@@ -26,8 +26,59 @@
             <li><span class="dot"></span>设备 HMAC 签名 + nonce 防重放</li>
             <li><span class="dot"></span>迟到/早退自动判定与日汇总</li>
           </ul>
+
+          <!-- 访客位置与当前天气：登录页的天空就是按这里的数据渲染的 -->
+          <div class="sky-card">
+            <div class="sky-main">
+              <el-icon class="sky-icon" aria-hidden="true"><component :is="weatherIcon" /></el-icon>
+              <span class="sky-temp">{{ temperature === null ? '--' : temperature }}<em>°C</em></span>
+              <span class="sky-weather">{{ sky.bucketLabel }}</span>
+              <span v-if="sky.cloudCover !== null" class="sky-cover">云量 {{ sky.cloudCover }}%</span>
+            </div>
+            <div class="sky-place">
+              <span class="sky-pin" aria-hidden="true">◎</span>
+              <span class="sky-place-text">{{ sky.placeLabel }}</span>
+              <button type="button" class="sky-change" @click="openRegion">
+                {{ sky.isManual ? '已手动选择' : '修改' }}
+              </button>
+            </div>
+            <div class="sky-note">
+              <span v-if="sky.ipCity">IP 定位：{{ sky.ipCity }}</span>
+              <span v-else>IP 定位不可用，按默认城市展示</span>
+              <button v-if="sky.isManual" type="button" class="sky-reset" @click="resetRegion">
+                恢复 IP 定位
+              </button>
+            </div>
+          </div>
         </div>
       </div>
+
+      <!-- 城市选择：省 → 市 → 区 三级联动 -->
+      <el-dialog
+        v-model="regionOpen"
+        title="选择你所在的城市"
+        width="420px"
+        align-center
+        append-to-body
+        class="region-dialog"
+      >
+        <p class="region-tip">用于展示当地天气与天色；只保存城市名，不保存 IP。</p>
+        <el-cascader
+          v-model="regionPath"
+          :options="regionOptions"
+          :props="{ expandTrigger: 'click' }"
+          filterable
+          clearable
+          separator=" / "
+          placeholder="省 / 市 / 区"
+          style="width: 100%"
+          @change="onRegionChange"
+        />
+        <template #footer>
+          <el-button @click="regionOpen = false">取消</el-button>
+          <el-button type="primary" :loading="sky.loading" @click="applyRegion">确定</el-button>
+        </template>
+      </el-dialog>
 
       <!-- 右侧表单区 -->
       <div class="form-side">
@@ -96,11 +147,62 @@ import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { InfoFilled, Lock, User } from '@element-plus/icons-vue'
+import { Cloudy, Drizzling, Lightning, Moon, MostlyCloudy, PartlyCloudy, Pouring, Sunny, Sunrise } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
+import { useSkyStore } from '@/stores/sky'
+import { computed } from 'vue'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
+
+const sky = useSkyStore()
+const regionOpen = ref(false)
+const regionPath = ref([])
+const regionOptions = ref([])
+
+/** 天气图标：用 Element Plus 图标，避免 emoji 在不同系统上渲染不一致 */
+const WEATHER_ICON = {
+  clear: Sunny,
+  'mostly-clear': PartlyCloudy,
+  partly: MostlyCloudy,
+  overcast: Cloudy,
+  rain: Pouring,
+  snow: Drizzling,
+  fog: Cloudy,
+  thunder: Lightning,
+}
+const weatherIcon = computed(() => WEATHER_ICON[sky.bucket] || MostlyCloudy)
+const temperature = computed(() => sky.temperature)
+
+async function openRegion() {
+  regionOpen.value = true
+  regionOptions.value = await sky.loadRegions()
+  regionPath.value = sky.manual
+    ? [sky.manual.province, sky.manual.city, sky.manual.district].filter(Boolean)
+    : [sky.province, sky.city, sky.district].filter(Boolean)
+}
+
+function onRegionChange(value) {
+  regionPath.value = value || []
+}
+
+async function applyRegion() {
+  const [province, city, district] = regionPath.value || []
+  if (!city && !district) {
+    regionOpen.value = false
+    return
+  }
+  await sky.setManual({ province, city, district })
+  regionOpen.value = false
+  ElMessage.success(`已切换到 ${district || city}`)
+}
+
+async function resetRegion() {
+  await sky.resetManual()
+  regionPath.value = []
+  ElMessage.success('已恢复按 IP 定位')
+}
 
 const formRef = ref(null)
 const loading = ref(false)
@@ -253,6 +355,113 @@ async function handleLogin() {
 }
 
 /* ---------- 表单区 ---------- */
+.sky-card {
+  margin-top: 26px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  backdrop-filter: blur(6px);
+  max-width: 380px;
+}
+
+.sky-main {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.sky-icon {
+  font-size: 24px;
+  line-height: 1;
+  color: #ffffff;
+}
+
+.sky-temp {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: #ffffff;
+}
+
+.sky-temp em {
+  font-size: 13px;
+  font-style: normal;
+  opacity: 0.8;
+  margin-left: 2px;
+}
+
+.sky-weather {
+  font-size: 14px;
+  font-weight: 500;
+  color: #eaf4ff;
+}
+
+.sky-cover {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.sky-place {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.sky-pin {
+  opacity: 0.8;
+}
+
+.sky-place-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sky-change {
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-size: 12px;
+  padding: 2px 9px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.sky-change:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.sky-note {
+  margin-top: 7px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.sky-reset {
+  border: none;
+  background: none;
+  color: rgba(255, 255, 255, 0.78);
+  text-decoration: underline;
+  font-size: 11.5px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.region-tip {
+  margin: 0 0 12px;
+  font-size: 12.5px;
+  color: #64748b;
+}
+
 .form-side {
   display: flex;
   align-items: center;

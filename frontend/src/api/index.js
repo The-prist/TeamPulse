@@ -151,3 +151,14 @@ export const auditApi = {
   detail: (id) => http.get(`/audit/${id}`),
   options: () => http.get('/audit/options'),
 }
+
+/**
+ * 登录页天空相关接口（公开，无需登录）。
+ *
+ * sky-context 不传参数时由后端按访客真实 IP 定位；
+ * 传 province/city/district 时按手动选择的地点取天气。
+ */
+export const skyApi = {
+  context: (params) => http.get('/public/sky-context', { params }),
+  regions: () => http.get('/public/regions'),
+}
