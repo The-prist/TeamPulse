@@ -172,6 +172,8 @@ def table(doc, headers, rows, widths=None, font_size=8.5, header_fill="DCE6F1"):
                 col.set(qn("w:w"), str(int(widths[i] * 1440)))
 
     for row in rows:
+        # 容忍列数不一致：多截少补（md 表格里常有嵌套竖线）
+        row = list(row)[:len(headers)] + [""] * max(0, len(headers) - len(row))
         cells = tbl.add_row().cells
         for i, val in enumerate(row):
             cells[i].width = Inches(widths[i])

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""生成《TeamPulse 详细设计与架构决策记录（ADR）》DOCX。
+"""生成《TeamPulse 详细设计说明书（ADR）》DOCX。
 
 内容全部对应真实类与方法：类名、职责、行数取自源码统计。
 用法：
@@ -112,7 +112,7 @@ def main() -> int:
     args = ap.parse_args()
 
     doc = C.new_document(
-        "TeamPulse 详细设计与架构决策记录",
+        "TeamPulse 详细设计说明书",
         "团队协作与物联网考勤平台 · 实现细节与取舍依据",
         ["覆盖：认证、打卡、审批、数据范围、审计、可观测、定时结算",
          "包含 10 条 ADR（Architecture Decision Record）",

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""生成《TeamPulse 概要设计说明书》DOCX。
+"""生成《TeamPulse 总体设计说明书》DOCX。
 
 规模数字来自对源码的实时统计（见 docs 中的说明），不手工估算。
 用法：
@@ -59,7 +59,7 @@ def main() -> int:
     views, view_lines = 37, 17014
 
     doc = C.new_document(
-        "TeamPulse 概要设计说明书",
+        "TeamPulse 总体设计说明书",
         "团队协作与物联网考勤平台 · 架构与模块设计",
         ["架构风格：单体（Monolith）+ 前后端分离 + 单机容器化部署",
          f"规模：后端 {java_files} 个 Java 文件 / {java_lines} 行；前端 {views} 个页面 / {view_lines} 行",

@@ -357,19 +357,26 @@ teampulse/
 
 | 文档 | 内容 |
 |---|---|
-| [`docs/TeamPulse_需求规格说明书.docx`](docs/TeamPulse_需求规格说明书.docx) | 需求基线：项目背景、29 项总目标与达成状态、6 角色矩阵、83 项功能清单、范围边界（明确不做微服务与分布式）、非功能需求、17 条已知限制 |
-| [`docs/TeamPulse_全过程交接文档.md`](docs/TeamPulse_全过程交接文档.md) | 从老项目重构到 RBAC/审计/观测的完整过程、Bug 与踩坑记录、环境约定、验证基线、未完成事项 |
-| [`docs/角色与权限矩阵.md`](docs/角色与权限矩阵.md) | 6 角色的权限矩阵、数据范围规则、补卡审批流程、审计日志落地说明 |
-| [`docs/代码文件结构.docx`](docs/代码文件结构.docx) | 目录结构速查（125 Java / 42 Vue / 21 表 / 90 接口） |
-| [`docs/测试文档.docx`](docs/TeamPulse_测试文档.docx) | 测试策略（五层）、46+42 项接口用例明细（结果由运行产物回填）、6 角色 × 16 路由权限审计矩阵、压测数据、11 条真实缺陷记录与回归验证、需求覆盖矩阵、未覆盖项 |
-| [`docs/数据库设计说明书.docx`](docs/TeamPulse_数据库设计说明书.docx) | 21 表 / 218 字段全量字典（来自运行库导出）、索引与唯一约束、8 条迁移演进、Mermaid ER 图、无物理外键的原因 |
-| [`docs/概要设计说明书.docx`](docs/TeamPulse_概要设计说明书.docx) | 分层架构、7 服务部署拓扑、13 个后端模块与规模、关键设计（认证/物联/审计/可观测）、4 条时序、选型理由与演进点 |
-| [`docs/接口文档.docx`](docs/TeamPulse_接口文档.docx) | 70 路径 / 92 操作 / 109 模型；含两种鉴权、17 个错误码、按模块明细、8 个核心接口详解、设备验签规则与 curl 示例 |
-| [`docs/详细设计与ADR.docx`](docs/TeamPulse_详细设计与ADR.docx) | 12 个关键类职责、打卡/审批/数据范围/审计的逐步实现、判定算法伪代码、指标清单、8 条 ADR、已知技术债 |
-| [`docs/部署手册.md`](docs/部署手册.md) | 从装 Docker 到上线验收的逐步 Runbook：环境检查、.env 各项、首次启动验收、HTTPS、监控、备份恢复演练、回滚、故障排查表、上线安全检查清单 |
-| [`docs/性能测试报告.md`](docs/性能测试报告.md) | 20 并发下的 QPS 与分位延迟、索引前后对比、瓶颈定位（数据库只占 2%）、改进建议 |
-| [`docs/部署验证记录.md`](docs/部署验证记录.md) | 本机首次容器化的环境准备、7 个问题的根因与修复、验证证据、耗时、未验证项 |
-| `docs/diagrams/` | 用例图、ER 图（PlantUML 源文件 + PNG/SVG，v1 尚未包含 RBAC 新增表） |
+| 阶段 | 文档 | 内容 |
+|---|---|---|
+| 立项 | [`docs/TeamPulse_可行性研究报告.docx`](docs/TeamPulse_可行性研究报告.docx) | 技术/经济/操作/进度/风险五维论证，结论与成本核算 |
+| 立项 | [`docs/TeamPulse_项目开发计划书.docx`](docs/TeamPulse_项目开发计划书.docx) | WBS（10 个工作包）、6 个里程碑、资源与质量计划、风险应对 |
+| 需求 | [`docs/TeamPulse_需求规格说明书.docx`](docs/TeamPulse_需求规格说明书.docx) | 需求基线：6 角色、22 权限点、90 接口、29 项目标达成状态、范围边界 |
+| 设计 | [`docs/TeamPulse_总体设计说明书.docx`](docs/TeamPulse_总体设计说明书.docx) | 分层架构、7 服务部署拓扑、13 个模块与规模、关键设计、选型理由 |
+| 设计 | [`docs/TeamPulse_详细设计说明书.docx`](docs/TeamPulse_详细设计说明书.docx) | 12 个关键类职责、打卡/审批/数据范围实现顺序、算法伪代码、10 条 ADR |
+| 设计 | [`docs/TeamPulse_数据库设计说明书.docx`](docs/TeamPulse_数据库设计说明书.docx) | 21 表 / 218 字段全量字典、索引与唯一约束、8 条迁移、ER 关系 |
+| 设计 | [`docs/TeamPulse_接口文档.docx`](docs/TeamPulse_接口文档.docx) | 70 路径 / 92 操作 / 109 模型、两种鉴权、17 个错误码、curl 示例 |
+| 设计 | [`docs/TeamPulse_系统图册.docx`](docs/TeamPulse_系统图册.docx) | 9 张图：架构/部署/业务流程/用例/时序/状态/类/组件/数据模型（含「怎么读」） |
+| 测试 | [`docs/TeamPulse_测试计划与报告.docx`](docs/TeamPulse_测试计划与报告.docx) | 五层策略、46+42 项用例明细、6 角色权限审计矩阵、11 条缺陷记录、覆盖矩阵 |
+| 测试 | [`docs/性能测试报告.md`](docs/性能测试报告.md) | 20 并发 QPS 与分位延迟、索引前后对比、瓶颈定位、改进建议 |
+| 交付 | [`docs/TeamPulse_用户手册.docx`](docs/TeamPulse_用户手册.docx) | 登录与两套界面、6 角色速查、分步操作指引、常见问题、界面约定 |
+| 交付 | [`docs/TeamPulse_部署说明.docx`](docs/TeamPulse_部署说明.docx) | 部署手册的 Word 版：装 Docker → .env → 首次启动 5 条验收 → HTTPS → 备份演练 |
+| 运维 | [`docs/TeamPulse_维护与运维手册.docx`](docs/TeamPulse_维护与运维手册.docx) | 日/周/月巡检清单、监控阈值、备份恢复、发布回滚、故障 SOP、安全加固、容量规划 |
+| 运维 | [`docs/部署手册.md`](docs/部署手册.md) | 可照抄命令的部署 Runbook（Markdown 源） |
+| 运维 | [`docs/部署验证记录.md`](docs/部署验证记录.md) | 本机与腾讯云两次部署实录、7 个问题的根因与修复、端口矩阵 |
+| 参考 | [`docs/角色与权限矩阵.md`](docs/角色与权限矩阵.md) | 6 角色 × 22 权限点的精确矩阵、数据范围规则、补卡审批流 |
+| 参考 | [`docs/TeamPulse_全过程交接文档.md`](docs/TeamPulse_全过程交接文档.md) | 从老项目重构到 RBAC/审计/观测/上云的全过程与决策 |
+| 参考 | [`docs/代码文件结构.docx`](docs/代码文件结构.docx) | 目录结构速查（125 Java / 37 Vue / 21 表 / 90 接口） |
 
 ---
 

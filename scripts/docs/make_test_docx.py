@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""生成《TeamPulse 测试文档》DOCX。
+"""生成《TeamPulse 测试计划与报告》DOCX。
 
 数据来源（全部为真实运行产物，不手填结果）：
   .run-logs/e2e-container.json   容器环境 46 项接口断言（含打卡写库用例）
@@ -102,7 +102,7 @@ def main() -> int:
             prod_ok[c.get("title", "")] = c.get("ok")
 
     doc = C.new_document(
-        "TeamPulse 测试文档",
+        "TeamPulse 测试计划与报告",
         "团队协作与物联网考勤平台 · 测试策略、用例、执行记录与缺陷",
         ["测试层次：单元测试 / 集成测试 / 接口端到端 / 逐角色权限审计 / 压测 / 手工验收",
          f"接口断言 {full.get('total', 0)} 项（容器）/ {prod.get('total', 0)} 项（线上），"
