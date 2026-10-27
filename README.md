@@ -390,7 +390,7 @@ teampulse/
 | 可观测性 | ✅ traceId + Prometheus 指标 + 日志落盘；**Prometheus + Grafana 已接入并实测** |
 | 性能 | ✅ 有压测数据（20 并发 p99 46ms，0 失败）；索引效果与瓶颈定位见性能报告 |
 | **本地容器化** | ✅ **已跑通**：镜像构建 + 5 容器 healthy + 全新库启动验证（见部署验证记录） |
-| **云端部署** | ✅ **已完成**（2026-10-27）：腾讯云轻量 81.70.102.116，5 容器 healthy，公网 43/43 断言通过 |
+| **云端部署** | ✅ **已完成**（2026-10-27）：腾讯云轻量 www.team-pulse.site，5 容器 healthy，公网 43/43 断言通过 |
 | 测试 | ⚠️ 仅单元测试；集成测试与压测未做 |
 | CI | 🚫 **按决策终止推进**：GitHub 账号账单锁定，不再尝试在 GitHub 上运行；本地等价验证（`scripts/run-tests.ps1`）已覆盖 |
 
@@ -472,7 +472,8 @@ docker exec -it tp-mysql mysql -uroot -p teampulse \
 
 | 项 | 值 |
 |---|---|
-| 地址 | **http://81.70.102.116/** |
+| 地址 | **http://www.team-pulse.site/** |
+| 域名 | `www.team-pulse.site` 与 `team-pulse.site` 均解析到 81.70.102.116（腾讯云轻量） |
 | 云厂商 / 区域 | 腾讯云轻量应用服务器，ap-beijing |
 | 系统 / 配置 | Rocky Linux 10.2，4 vCPU / 3.7 GB / 40 GB（含 2 GB swap） |
 | 管理员 | `admin`（密码在服务器 `/opt/TeamPulse/.env` 的 `TPP_ADMIN_PASSWORD`，部署时随机生成） |
@@ -484,6 +485,6 @@ docker exec -it tp-mysql mysql -uroot -p teampulse \
 日常发布：
 
 ```bash
-ssh root@81.70.102.116
+ssh root@www.team-pulse.site
 cd /opt/TeamPulse && bash deploy/scripts/deploy-server.sh
 ```
