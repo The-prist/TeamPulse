@@ -5,8 +5,9 @@ import json
 import os
 import re
 
-SRC = r"E:\codestorge\frontend\src"
-OUT = r"E:\codestorge\.run-logs\button-inventory.json"
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+SRC = os.path.join(ROOT, "frontend", "src")
+OUT = os.path.join(ROOT, ".run-logs", "button-inventory.json")
 
 # 组件里常见写法：@click="xxx" / @confirm="xxx" / @change="xxx" / @command="xxx"
 HANDLER_RE = re.compile(r'@(click|confirm|change|command|submit)="([^"]{1,120})"')
@@ -57,6 +58,7 @@ for it in items:
     seen.add(key)
     uniq.append(it)
 
+os.makedirs(os.path.dirname(OUT), exist_ok=True)
 with open(OUT, "w", encoding="utf-8") as fh:
     json.dump(uniq, fh, ensure_ascii=False, indent=2)
 

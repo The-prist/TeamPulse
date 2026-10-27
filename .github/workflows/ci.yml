@@ -162,3 +162,126 @@ jobs:
           assert isinstance(data, dict) and 'spring' in data, 'application.yml 结构异常'
           print('application.yml 解析通过，顶层键：', ', '.join(sorted(data.keys())))
           PY
+
+  # ---------------------------------------------------------------- 静态检查
+  # 抓「用了 x.value 却未声明 x」这类只在渲染期才炸的错误。
+  # 2026-10-27 日程详情页白屏即此类；接口测试全绿也发现不了。
+  static-audit:
+    name: 静态检查（渲染级错误 / 控件清单）
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 扫描未声明的 ref 引用
+        run: python scripts/audit/check_undefined_refs.py
+
+      - name: 抽取前端交互控件清单
+        run: python scripts/audit/extract_buttons.py
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: button-inventory
+          path: .run-logs/button-inventory.json
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------- 全栈冒烟
+  # 起真实 compose 全栈 → 灌演示数据 → 接口矩阵 + 浏览器冒烟。
+  # 覆盖「接口 200 但页面白屏」这类接口测不到的回归。
+  ui-smoke:
+    name: 浏览器冒烟 + 接口矩阵（全栈）
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.19.0'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 生成 CI 用 .env（密码取自 secrets，JWT 现场生成）
+        env:
+          # 未配置 CI_MYSQL_PASSWORD 时用占位值；仅用于 CI 临时库，不是真实密钥
+          CI_DB_PWD: ${{ secrets.CI_MYSQL_PASSWORD || 'ci-local-placeholder' }}
+        run: |
+          set -euo pipefail
+          cat > .env <<EOF
+          DB_NAME=teampulse
+          MYSQL_ROOT_PASSWORD=${CI_DB_PWD}
+          REDIS_PASSWORD=${CI_DB_PWD}
+          MQTT_USERNAME=teampulse
+          MQTT_PASSWORD=${CI_DB_PWD}
+          JWT_SECRET=$(openssl rand -hex 32)
+          TPP_BOOTSTRAP_ENABLED=true
+          TPP_ADMIN_PASSWORD=${CI_DB_PWD}
+          TPP_OPENAPI_ENABLED=false
+          TPP_CORS_ORIGINS=
+          GRAFANA_ADMIN_PASSWORD=${CI_DB_PWD}
+          EOF
+          echo "已生成 .env（密码来自 CI_DB_PWD，JWT 每次现场生成）"
+
+      - name: 构建并启动全栈
+        run: docker compose up -d --build mysql redis mosquitto backend frontend
+
+      - name: 等待容器健康
+        run: |
+          set -uo pipefail
+          for i in $(seq 1 72); do
+            b=$(docker inspect --format '{{.State.Health.Status}}' tp-backend 2>/dev/null || echo none)
+            f=$(docker inspect --format '{{.State.Health.Status}}' tp-frontend 2>/dev/null || echo none)
+            echo "[$((i*5))s] backend=$b frontend=$f"
+            if [ "$b" = "healthy" ] && [ "$f" = "healthy" ]; then exit 0; fi
+            sleep 5
+          done
+          echo "容器未就绪，后端日志："
+          docker compose logs --tail=120 backend
+          exit 1
+
+      - name: 灌演示数据（基础种子 → 20 账号 → 全量业务数据）
+        run: |
+          set -euo pipefail
+          P=$(grep '^MYSQL_ROOT_PASSWORD=' .env | cut -d= -f2)
+          M() { docker exec -i tp-mysql mysql -uroot -p"$P" --default-character-set=utf8mb4 teampulse; }
+          M < deploy/sql/seed-demo.sql
+          M < deploy/sql/seed-extra-users.sql
+          docker exec tp-mysql mysql -uroot -p"$P" -N -B teampulse -e \
+            "SELECT CONCAT_WS('|', user_id, IFNULL(employee_no,'NONE'), role, IFNULL(department_id,0), username, IFNULL(nickname,'')) FROM user WHERE deleted=0 ORDER BY user_id;" > /tmp/users.tsv
+          echo "账号映射行数: $(wc -l < /tmp/users.tsv)"
+          python3 scripts/docs/gen_demo_data.py --out /tmp/seed-extra.sql --users /tmp/users.tsv
+          M < /tmp/seed-extra.sql
+          docker exec tp-mysql mysql -uroot -p"$P" -N -B teampulse -e \
+            "SELECT CONCAT('users=', COUNT(*)) FROM user WHERE deleted=0;"
+          docker exec tp-mysql mysql -uroot -p"$P" -N -B teampulse -e \
+            "SELECT CONCAT('teams=', COUNT(*)) FROM team WHERE deleted=0;"
+
+      - name: 接口矩阵（6 角色 × 83 接口）
+        run: node scripts/audit/button-e2e.mjs --base=http://127.0.0.1
+
+      - name: 安装 Playwright 与 Chromium
+        run: |
+          set -euo pipefail
+          cd tests/ui
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: 浏览器冒烟（6 角色 × 各自页面）
+        env:
+          BASE: http://127.0.0.1
+          CHANNEL: ''
+        run: node tests/ui/smoke.mjs
+
+      - name: 失败时导出后端日志
+        if: failure()
+        run: docker compose logs --tail=200 backend
+
+      - name: 清理
+        if: always()
+        run: docker compose down -v

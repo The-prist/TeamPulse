@@ -9,7 +9,15 @@
 //   node tests/ui/smoke.mjs                  # 默认打 http://www.team-pulse.site
 //   BASE=http://81.70.102.116 node tests/ui/smoke.mjs
 //   ONLY=employee node tests/ui/smoke.mjs    # 只测一个角色
-import { chromium } from 'playwright-core'
+// 本地用系统 Edge（channel=msedge），CI 用 Playwright 自带 Chromium（CHANNEL=''）。
+// 优先用 playwright（CI 会 npx playwright install 装浏览器），退回 playwright-core。
+let chromium
+try {
+  ({ chromium } = await import('playwright'))
+} catch {
+  ({ chromium } = await import('playwright-core'))
+}
+const CHANNEL = process.env.CHANNEL === undefined ? 'msedge' : process.env.CHANNEL
 
 const BASE = process.env.BASE || 'http://www.team-pulse.site'
 const ONLY = process.env.ONLY || ''
@@ -69,8 +77,8 @@ const log = (role, page, kind, detail) => results.push({ role, page, kind, detai
 
 const run = async () => {
   console.log(`目标: ${BASE}`)
-  const browser = await chromium.launch({ channel: 'msedge', headless: true })
-  console.log(`浏览器: Edge (playwright-core ${(await import('playwright-core/package.json', { with: { type: 'json' } })).default.version})\n`)
+  const browser = await chromium.launch({ ...(CHANNEL ? { channel: CHANNEL } : {}), headless: true })
+  console.log(`浏览器: ${CHANNEL || 'chromium(内置)'}\n`)
 
   const roles = ONLY ? ROLES.filter((r) => r.role === ONLY || r.user === ONLY) : ROLES
 
