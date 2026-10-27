@@ -153,99 +153,85 @@ const main = async () => {
     console.log(`登录 ${r.user.padEnd(10)} role=${r.role.padEnd(9)} 权限=${tokens[r.role].perms.length}`)
   }
 
-  // 2) 夹具（用 admin 取真实 id）
+  // 2) 夹具：全部自建（不再借用真实数据），测试结束后统一清理。
+  //    原因见 docs/按钮回归测试记录.md：借用真实 id 会让 DELETE 接口删掉演示数据。
   const A = tokens.sysadmin.token
-  const pick = async (path, keys) => {
-    const r = await call('GET', path, A)
-    const d = r.data
-    const rows = d?.records || d || []
-    const first = Array.isArray(rows) ? rows[0] : null
-    const out = {}
-    for (const k of keys) out[k] = first?.[k]
-    return out
+  const T = Date.now()
+  const created = {}
+
+  const mkTeam = await call('POST', '/api/v1/team', A, { teamName: 'E2E夹具团队-' + T, description: 'x' })
+  created.teamId = mkTeam.data?.teamId
+  const mkUser = await call('POST', '/api/v1/user', A, {
+    username: 'e2efix' + T, password: '123456', email: 'e2efix' + T + '@teampulse.local',
+    nickname: 'E2E夹具用户', role: 'employee',
+  })
+  created.userId = mkUser.data?.userId
+  const mkSchedule = await call('POST', '/api/v1/schedule', A, {
+    title: 'E2E夹具日程-' + T, content: 'x',
+    startTime: '2026-12-01T10:00:00', endTime: '2026-12-01T11:00:00',
+  })
+  created.scheduleId = mkSchedule.data?.scheduleId
+  const mkWorklog = await call('POST', '/api/v1/worklog', A, {
+    title: 'E2E夹具日志-' + T, content: 'x', logDate: '2026-12-01',
+  })
+  created.worklogId = mkWorklog.data?.worklogId
+  const mkComment = await call('POST', '/api/v1/comment', A, {
+    relatedType: 'schedule', relatedId: created.scheduleId, content: 'E2E夹具评论-' + T,
+  })
+  if (mkComment.code === 0) {
+    const cl = await call('GET', `/api/v1/comment?relatedType=schedule&relatedId=${created.scheduleId}`, A)
+    const rows = cl.data?.records || cl.data || []
+    created.commentId = (Array.isArray(rows) ? rows : []).find((x) => String(x.content).startsWith('E2E夹具评论'))?.commentId
   }
-  const sched = await pick('/api/v1/schedule?page=1&size=1', ['scheduleId'])
-  const team = await pick('/api/v1/team/list?page=1&size=1', ['teamId'])
-  const kanban = await pick('/api/v1/kanban', ['kanbanId'])
-  const worklog = await pick('/api/v1/worklog?page=1&size=1', ['worklogId'])
-  const audit = await pick('/api/v1/audit?page=1&size=1', ['id', 'auditId'])
-  const devices = await call('GET', '/api/v1/devices', A)
-  const makeup = await call('GET', '/api/v1/makeup/pending', A)
-  const words = await call('GET', '/api/v1/sensitive-word', A)
-  const users = await call('GET', '/api/v1/user/list?page=1&size=20', A)
+  const mkKanban = await call('POST', '/api/v1/kanban', A, {
+    kanbanName: 'E2E夹具看板-' + T, description: 'x', teamId: created.teamId,
+  })
+  created.kanbanId = mkKanban.data?.kanbanId
+  let columnId, itemId
+  if (created.kanbanId) {
+    const kd = await call('GET', `/api/v1/kanban/${created.kanbanId}/detail`, A)
+    columnId = (kd.data?.columns || [])[0]?.columnId
+    if (columnId) {
+      const it = await call('POST', `/api/v1/kanban/${created.kanbanId}/items`, A, {
+        scheduleId: created.scheduleId, columnId, assigneeId: created.userId,
+      })
+      itemId = it.data?.itemId ?? it.data?.id
+    }
+  }
+  const mkDevice = await call('POST', '/api/v1/devices', A, {
+    deviceSn: 'E2E-SN-' + T, deviceName: 'E2E夹具设备', location: 'x', remark: 'x',
+  })
+  created.deviceId = mkDevice.data?.id ?? mkDevice.data?.deviceId
+  const mkW = await call('POST', '/api/v1/sensitive-word', A, { word: 'E2E词' + T, replacement: '**' })
+  created.wordId = mkW.data?.wordId ?? mkW.data?.id
+  const mkMakeup = await call('POST', '/api/v1/makeup', A, {
+    punchTime: '2026-12-01 09:00:00', reason: 'E2E夹具补卡',
+  })
+  const pend = await call('GET', '/api/v1/makeup/pending?page=1&size=50', A)
+  const pendRows = pend.data?.records || pend.data || []
+  created.makeupId = (Array.isArray(pendRows) ? pendRows : []).find((x) => String(x.reason || '').includes('E2E夹具'))?.requestId
+    ?? mkMakeup.data?.requestId
+  const auditList = await call('GET', '/api/v1/audit?page=1&size=1', A)
+  const auditRow = (auditList.data?.records || [])[0]
 
   const fx = {
-    scheduleId: sched.scheduleId,
-    teamId: team.teamId,
-    kanbanId: kanban.kanbanId,
-    worklogId: worklog.worklogId,
-    auditId: audit.auditId ?? audit.id,
-    deviceId: (devices.data?.records || devices.data || [])[0]?.deviceId ?? (devices.data?.records || devices.data || [])[0]?.id,
-    makeupId: (makeup.data?.records || makeup.data || [])[0]?.requestId,
-    wordId: (words.data?.records || words.data || [])[0]?.wordId,
-    userId: (users.data?.records || [])[0]?.userId,
-    otherUserId: (users.data?.records || [])[1]?.userId,
-    employeeUserId: (users.data?.records || [])[2]?.userId,
-    commentId: undefined,
-    columnId: undefined,
-    itemId: undefined,
-  }
-  // 评论/列/卡片：从详情里取
-  // 遍历看板，找第一个「有卡片」的，保证 move/assign 有夹具
-  const kbList = await call('GET', '/api/v1/kanban', A)
-  const kbs = kbList.data?.records || kbList.data || []
-  for (const k of (Array.isArray(kbs) ? kbs : [])) {
-    const d = await call('GET', `/api/v1/kanban/${k.kanbanId}/detail`, A)
-    const cols = d.data?.columns || []
-    const withItem = cols.find((c) => (c.items || []).length > 0)
-    if (withItem) {
-      fx.kanbanId = k.kanbanId
-      fx.columnId = withItem.columnId
-      fx.itemId = withItem.items[0].itemId
-      break
-    }
-    if (!fx.columnId && cols[0]) { fx.kanbanId = k.kanbanId; fx.columnId = cols[0].columnId }
-  }
-  const cm = await call('GET', `/api/v1/comment?relatedType=schedule&relatedId=${fx.scheduleId}`, A)
-  fx.commentId = (cm.data?.records || cm.data || [])[0]?.commentId
-
-  // 夹具不足时自建临时对象，保证每个接口都被覆盖；测试结束统一清理
-  const created = { kanbanId: null, commentId: null }
-  if (!fx.itemId) {
-    const tk = await call('POST', '/api/v1/kanban', A, {
-      kanbanName: 'E2E临时看板-' + Date.now(), description: '自动化测试夹具', teamId: fx.teamId,
-    })
-    const tkId = tk.data?.kanbanId
-    if (tkId) {
-      created.kanbanId = tkId
-      const td = await call('GET', `/api/v1/kanban/${tkId}/detail`, A)
-      const col = (td.data?.columns || [])[0]
-      if (col) {
-        fx.columnId = col.columnId
-        // 卡片是从日程投影来的，必须有 scheduleId
-        const it = await call('POST', `/api/v1/kanban/${tkId}/items`, A, {
-          scheduleId: fx.scheduleId, columnId: col.columnId, assigneeId: fx.userId,
-        })
-        fx.itemId = it.data?.itemId ?? it.data?.id
-      }
-    }
-  }
-  if (!fx.commentId) {
-    const cc = await call('POST', '/api/v1/comment', A, {
-      relatedType: 'schedule', relatedId: fx.scheduleId, content: 'E2E临时评论-' + Date.now(),
-    })
-    if (cc.code === 0) {
-      const cl = await call('GET', `/api/v1/comment?relatedType=schedule&relatedId=${fx.scheduleId}`, A)
-      const rows = cl.data?.records || cl.data || []
-      fx.commentId = (Array.isArray(rows) ? rows : []).filter((x) => String(x.content).startsWith('E2E临时评论')).pop()?.commentId
-      created.commentId = fx.commentId
-    }
+    scheduleId: created.scheduleId,
+    teamId: created.teamId,
+    kanbanId: created.kanbanId,
+    worklogId: created.worklogId,
+    auditId: auditRow?.id ?? auditRow?.auditId,
+    deviceId: created.deviceId,
+    makeupId: created.makeupId,
+    wordId: created.wordId,
+    userId: created.userId,
+    otherUserId: tokens.sysadmin.userId,
+    employeeUserId: created.userId,
+    commentId: created.commentId,
+    columnId,
+    itemId,
   }
 
-  console.log('\n夹具:', JSON.stringify(fx))
-  if (Object.values(fx).some((v) => v === undefined)) {
-    console.log('⚠ 有夹具为空，相关行会记为 SKIP')
-  }
+  console.log('\n自建夹具:', JSON.stringify(created))
 
   // 3) 逐角色 × 逐接口
   const rows = []
@@ -283,10 +269,20 @@ const main = async () => {
     for (const [label, role, , detail] of skip.slice(0, 10)) console.log(`  ${role.padEnd(9)} ${label.padEnd(14)} ${detail}`)
   }
 
-  // 4.5) 清理临时夹具
-  if (created.commentId) await call('DELETE', `/api/v1/comment/${created.commentId}`, A)
-  if (created.kanbanId) await call('DELETE', `/api/v1/kanban/${created.kanbanId}`, A)
-  console.log(`\n临时夹具清理：看板=${created.kanbanId ?? '未创建'} 评论=${created.commentId ?? '未创建'}`)
+  // 4.5) 清理临时夹具（顺序：先子后父）
+  const cleanup = []
+  if (created.commentId) cleanup.push(['评论', `/api/v1/comment/${created.commentId}`])
+  if (created.kanbanId) cleanup.push(['看板', `/api/v1/kanban/${created.kanbanId}`])
+  if (created.wordId) cleanup.push(['敏感词', `/api/v1/sensitive-word/${created.wordId}`])
+  if (created.deviceId) cleanup.push(['设备', `/api/v1/devices/${created.deviceId}`])
+  if (created.worklogId) cleanup.push(['日志', `/api/v1/worklog/${created.worklogId}`])
+  if (created.scheduleId) cleanup.push(['日程', `/api/v1/schedule/${created.scheduleId}`])
+  if (created.userId) cleanup.push(['用户', `/api/v1/user/${created.userId}`])
+  if (created.teamId) cleanup.push(['团队', `/api/v1/team/${created.teamId}`])
+  for (const [name, path] of cleanup) {
+    const r = await call('DELETE', path, A)
+    console.log(`  清理 ${name}: ${r.http}/${r.code}`)
+  }
 
   // 5) 各角色可见接口统计
   console.log('\n=== 各角色可访问的接口数（非 FORBID/非 UNAUTH）===')

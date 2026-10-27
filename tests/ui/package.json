@@ -1,0 +1,13 @@
+{
+  "name": "teampulse-ui-tests",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "description": "TeamPulse 浏览器级冒烟测试（复用系统 Edge，不下载浏览器）",
+  "scripts": {
+    "smoke": "node smoke.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.47.0"
+  }
+}
