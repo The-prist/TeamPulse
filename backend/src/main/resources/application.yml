@@ -78,7 +78,7 @@ mybatis-plus:
 teampulse:
   jwt:
     secret: ${TPP_JWT_SECRET:teampulse-dev-only-secret-change-me-0123456789}
-    access-token-ttl: PT12H
+    access-token-ttl: PT24H
     issuer: teampulse
   cors:
     allowed-origins: ${TPP_CORS_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}

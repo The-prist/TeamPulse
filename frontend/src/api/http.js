@@ -82,8 +82,12 @@ function redirectToLogin() {
   if (redirectingToLogin) return
   if (!window.location.pathname.startsWith('/login')) {
     redirectingToLogin = true
-    // 用整页跳转而不是 router.push：确保内存中的旧状态与定时器（如轮询）一并销毁
-    window.location.assign('/login')
+    // 用整页跳转而不是 router.push：确保内存中的旧状态与定时器（如轮询）一并销毁。
+    // 关键：把当前地址塞进 redirect，登录后能回到原来那一页（否则点详情被踢回登录页，
+    // 登录完落到 /u/home，用户会以为「详情打不开」）。
+    const back = window.location.pathname + window.location.search
+    const target = back.startsWith('/login') ? '/login' : `/login?redirect=${encodeURIComponent(back)}`
+    window.location.assign(target)
   }
 }
 

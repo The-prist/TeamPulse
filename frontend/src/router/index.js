@@ -94,7 +94,7 @@ router.afterEach((to) => {
  * 这里刻意直接读 tokenStorage 而不是 useAuthStore()：
  * 守卫在组件树之外执行，避免「Pinia 尚未激活」造成的初始化顺序问题。
  */
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   if (to.meta?.public) return true
 
   const token = tokenStorage.getToken()
@@ -102,9 +102,31 @@ router.beforeEach((to) => {
     return to.path === '/login' ? true : { path: '/login', query: { redirect: to.fullPath } }
   }
 
-  const user = tokenStorage.getUser() || {}
-  // RBAC 改造前的登录态没有 permissions 字段，继续用它会被静默降级到用户工作台，
-  // 不如直接清掉让用户重新登录一次，行为可预期。
+  let user = tokenStorage.getUser() || {}
+  // 权限缺失时不要立刻登出：先用 token 换一次 /auth/me（它现在会返回 permissions），
+  // 能自愈就继续，真的拿不到才清登录态。否则用户在详情页刷新一下就被踢回登录页，
+  // 表现为「页面点不开」。
+  if (!Array.isArray(user.permissions)) {
+    try {
+      // 直接调接口而不是用 Pinia：守卫执行时 Pinia 可能还没装好
+      const { authApi } = await import('@/api')
+      const me = await authApi.me()
+      user = {
+        ...user,
+        userId: me?.userId ?? user.userId,
+        username: me?.username ?? user.username,
+        nickname: me?.nickname ?? user.nickname,
+        role: me?.role ?? user.role,
+        roleName: me?.roleName ?? user.roleName,
+        departmentId: me?.departmentId ?? user.departmentId,
+        dataScope: me?.dataScope ?? user.dataScope,
+        permissions: Array.isArray(me?.permissions) ? me.permissions : [],
+      }
+      tokenStorage.setUser(user)
+    } catch (e) {
+      // 拿不到就按未登录处理
+    }
+  }
   if (!Array.isArray(user.permissions)) {
     tokenStorage.clear()
     return { path: '/login', query: { redirect: to.fullPath } }
