@@ -28,6 +28,9 @@ export const useSkyStore = defineStore('sky', () => {
   const intensityOverride = ref('auto')
   const loading = ref(false)
   const error = ref('')
+  /** 上次成功取到天气的时间戳，用于「是否过期」判断 */
+  const lastLoadedAt = ref(0)
+  let refreshTimer = null
 
   const city = computed(() => context.value?.city || '')
   const province = computed(() => context.value?.province || '')
@@ -95,6 +98,7 @@ export const useSkyStore = defineStore('sky', () => {
       if (manual.value?.city) params.city = manual.value.city
       if (manual.value?.district) params.district = manual.value.district
       context.value = await skyApi.context(params)
+      lastLoadedAt.value = Date.now()
       if (context.value?.source === 'fallback' && isManual.value) {
         error.value = '所选地点查不到天气，已回落到默认城市'
       }
@@ -103,6 +107,29 @@ export const useSkyStore = defineStore('sky', () => {
     } finally {
       loading.value = false
     }
+  }
+
+  /** 定时刷新天气：默认 10 分钟（与后端缓存 TTL 对齐） */
+  function startAutoRefresh(intervalMs = 10 * 60 * 1000) {
+    stopAutoRefresh()
+    refreshTimer = setInterval(() => {
+      load()
+    }, intervalMs)
+  }
+
+  function stopAutoRefresh() {
+    if (refreshTimer) {
+      clearInterval(refreshTimer)
+      refreshTimer = null
+    }
+  }
+
+  /** 页面重新回到前台时用：数据超过 maxAgeMs 才重新取，避免频繁请求 */
+  function refreshIfStale(maxAgeMs = 5 * 60 * 1000) {
+    if (!lastLoadedAt.value || Date.now() - lastLoadedAt.value > maxAgeMs) {
+      return load()
+    }
+    return Promise.resolve()
   }
 
   async function loadRegions() {
@@ -161,7 +188,11 @@ export const useSkyStore = defineStore('sky', () => {
     bucket,
     bucketLabel,
     placeLabel,
+    lastLoadedAt,
     load,
+    startAutoRefresh,
+    stopAutoRefresh,
+    refreshIfStale,
     loadRegions,
     setManual,
     resetManual,

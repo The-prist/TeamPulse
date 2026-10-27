@@ -381,7 +381,9 @@ function stepWeather(dt) {
     p.y += p.vy * k
     p.x += (p.vx + (p.sway ? Math.sin(p.sway + p.y * 0.02) * 0.5 : 0)) * k
     if (p.y > hitY || p.x < -40) {
-      if (hasAccum && p.y > hitY && Math.random() < 0.16) spawnSplash(p.x, hitY)
+      // 频率跟强度走：雨越大水花越多（0.02 → 0.06）
+      const splashRate = 0.05 * (skyStore.intensity || 1)
+      if (hasAccum && p.y > hitY && Math.random() < splashRate) spawnSplash(p.x, hitY)
       const fresh = makeParticle(bucket, false)
       Object.assign(p, fresh)
     }
@@ -439,16 +441,13 @@ function accumSurfaceY() {
 function stepAccumulation(dt) {
   const kind = currentAccumKind()
   if (kind !== accumKind) {
-    // 雨雪互换时清空，避免"雨突然变成雪堆"这种不合理画面
-    if (accumKind && kind && kind !== accumKind) accum = 0
-    accumKind = kind
+    // 切换天气（雨→雪、雨→晴、晴→雨…）一律清零：
+    // 之前是「雨↔雪才清零，其它按 3 倍慢速排干」，小雨要 15 分钟才掉完，看着就像没消失
+    accum = 0
     splashes = []
+    accumKind = kind
   }
-  if (!kind) {
-    // 停止降水后水会排掉/雪会化掉，用 3 倍的慢速退去
-    accum = Math.max(0, accum - dt / (accumSeconds() * 3000))
-    return
-  }
+  if (!kind) return
   accum = Math.min(1, accum + dt / (accumSeconds() * 1000))
 }
 
@@ -457,12 +456,12 @@ function spawnSplash(x, y) {
     x,
     y,
     t: 0,
-    life: rand(0.42, 0.7),
+    life: rand(0.8, 1.35),
     r: rand(2.2, 4.4),
     drops: Math.round(rand(1, 2)),
     seed: Math.random() * Math.PI * 2,
   })
-  if (splashes.length > 14) splashes.shift()
+  if (splashes.length > 10) splashes.shift()
 }
 
 function stepSplashes(dt) {
@@ -528,16 +527,16 @@ function drawAccumulation() {
     // 水花：涟漪 + 水珠
     for (const sp of splashes) {
       const k = sp.t / sp.life
-      const rr = sp.r + k * 22
-      octx.globalAlpha = Math.max(0, 1 - k) * 0.55
+      const rr = sp.r + k * 20
+      octx.globalAlpha = Math.pow(Math.max(0, 1 - k), 1.6) * 0.6
       octx.strokeStyle = 'rgba(240, 250, 255, 0.95)'
       octx.lineWidth = 1.3
       octx.beginPath()
       octx.ellipse(sp.x, sp.y, rr, rr * 0.34, 0, 0, Math.PI * 2)
       octx.stroke()
 
-      if (k < 0.55) {
-        octx.globalAlpha = Math.max(0, 1 - k / 0.55) * 0.7
+      if (k < 0.5) {
+        octx.globalAlpha = Math.pow(Math.max(0, 1 - k / 0.5), 1.4) * 0.75
         octx.fillStyle = 'rgba(244, 252, 255, 0.95)'
         for (let i = 0; i < sp.drops; i++) {
           const ang = sp.seed + (i / sp.drops) * Math.PI * 2
@@ -1321,10 +1320,14 @@ function onVisibility() {
   if (document.hidden) {
     running = false
     cancelAnimationFrame(raf)
-  } else if (!running && !reduced()) {
-    running = true
-    last = 0
-    raf = requestAnimationFrame(loop)
+  } else {
+    // 回到前台：天气数据太久就刷新一次（切换标签页很久回来时很有用）
+    skyStore.refreshIfStale()
+    if (!running && !reduced()) {
+      running = true
+      last = 0
+      raf = requestAnimationFrame(loop)
+    }
   }
 }
 
@@ -1388,6 +1391,8 @@ onMounted(() => {
   preloadCloudImages()
 
   // 登录页一进来就取一次位置与天气；失败也只是回落多云，不影响渲染
+  // 每 10 分钟刷新一次天气（后端缓存也是 10 分钟）
+  skyStore.startAutoRefresh()
   skyStore.load().then(() => {
     refreshCloudPalette()
     preloadCloudImages()
@@ -1433,6 +1438,7 @@ onMounted(() => {
       }
     },
     get accum() { return { kind: accumKind, value: Number(accum.toFixed(3)), percent: Math.round(accum * 100) } },
+    get splashCount() { return splashes.length },
     setAccum(v) {
       accum = Math.max(0, Math.min(1, Number(v) || 0))
       accumKind = currentAccumKind()
@@ -1458,6 +1464,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  skyStore.stopAutoRefresh()
   running = false
   cancelAnimationFrame(raf)
   ro?.disconnect()
