@@ -2,7 +2,7 @@ flowchart TB
   B["浏览器"] -->|80 公网| FE
   E["ESP32 打卡机"] -->|1883 需放行| MQ
   O["运维终端"] -->|SSH 22 密钥| CLOUD
-  subgraph CLOUD["云服务器 81.70.102.116 · ap-beijing · Docker 29.9"]
+  subgraph CLOUD["云服务器 www.team-pulse.site（81.70.102.116）· ap-beijing · Docker 29.9"]
     subgraph NET["Docker 网络 teampulse_default"]
       FE["tp-frontend<br/>nginx:1.27-alpine · 80:80 唯一公网"]
       BE["tp-backend<br/>8080 仅内网 · Spring Boot 单体"]

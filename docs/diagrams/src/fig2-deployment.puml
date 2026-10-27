@@ -5,7 +5,7 @@ actor "浏览器" as BROWSER
 actor "ESP32 打卡机" as ESP32
 actor "运维终端" as OPS
 
-node "云服务器 81.70.102.116（公网 IP）\nap-beijing · Docker 29.9\n盘 40G · 内存 3.7G + 2G swap · firewalld 关闭（用腾讯云控制台防火墙）" as CLOUD {
+node "云服务器 www.team-pulse.site（81.70.102.116）\nap-beijing · Docker 29.9\n盘 40G · 内存 3.7G + 2G swap · firewalld 关闭（用腾讯云控制台防火墙）" as CLOUD {
 
   node "Docker 网络 teampulse_default" as NET {
     component "tp-frontend\nnginx:1.27-alpine\n80:80（唯一对公网）\n托管 SPA + 反代 /api /iot" as FE
@@ -19,7 +19,7 @@ node "云服务器 81.70.102.116（公网 IP）\nap-beijing · Docker 29.9\n盘 
   }
 }
 
-BROWSER --> FE : "公网 http://81.70.102.116/ (80)"
+BROWSER --> FE : "公网 http://www.team-pulse.site/ (80)"
 ESP32 --> MQ : "MQTT 1883（需控制台放行）"
 OPS --> CLOUD : "SSH 22（密钥登录）"
 
@@ -32,6 +32,6 @@ BE ..> PROM : 指标抓取
 
 note bottom
   8080 / 3000 / 9090 均不对公网开放；
-  看监控用 SSH 隧道：ssh -L 3000:127.0.0.1:3000 root@81.70.102.116
+  看监控用 SSH 隧道：ssh -L 3000:127.0.0.1:3000 root@www.team-pulse.site
 end note
 @enduml
