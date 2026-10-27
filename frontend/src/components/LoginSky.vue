@@ -20,7 +20,6 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import {
   beijingDateAtHour,
   beijingHour,
-  cloudAlpha,
   moonIllumination,
   moonPhaseName,
   moonPosition,
@@ -54,7 +53,6 @@ const dragging = ref(false)
 const collapsed = ref(false)
 
 let stars = []
-let clouds = []
 let events = []
 let contrail = []
 let meteorTrail = []
@@ -65,7 +63,6 @@ let renderHour = 12
 let sunAlt = 0
 let sunAz = 0
 let starsVisible = 0
-let cloudsVisible = 0
 let sunAlpha = 0
 let palette = skyPalette(20, true)
 let sunCss = '#fffcf0'
@@ -117,81 +114,9 @@ function makeStar() {
  *   - 中排更大，顶排 2~3 个"鼓包"，做出顶部起伏
  *   - 每朵云尺度不同（22~150），小的做远景点缀
  */
-/** 在一处可见区域内取一个落点（顶部带 / 左留白 / 右留白） */
-function pickCloudSpot(region) {
-  if (region === 'left') {
-    return { x: rand(width * 0.04, width * 0.14), y: rand(height * 0.26, height * 0.76) }
-  }
-  if (region === 'right') {
-    return { x: rand(width * 0.86, width * 0.96), y: rand(height * 0.26, height * 0.76) }
-  }
-  return { x: rand(width * 0.1, width * 0.9), y: rand(height * 0.07, height * 0.2) }
-}
-
-function makeCloud(region = 'top', spot = null) {
-  const tier = Math.random()
-  const base = tier < 0.34 ? rand(22, 34) : tier < 0.74 ? rand(42, 70) : rand(78, 124)
-  const pos = spot ?? pickCloudSpot(region)
-  const hx = pos.x
-  const hy = pos.y
-
-  const cols = tier < 0.34 ? 5 : tier < 0.74 ? 8 : 12
-  const puffs = []
-  // 底排：底边对齐
-  for (let i = 0; i < cols; i++) {
-    const t = i / (cols - 1) - 0.5
-    const k = 0.45 + 0.55 * Math.cos(t * Math.PI * 0.95)
-    const r = base * (tier < 0.34 ? 0.52 + 0.3 * k : 0.36 + 0.34 * k)
-    puffs.push({
-      dx: t * base * 1.55 + rand(-1.5, 1.5), // 叠得密一些，减少"葡萄串"感
-      dy: -r,
-      r,
-      tone: rand(0.96, 1),
-    })
-  }
-  // 顶部 2~3 个鼓包（中间高）
-  const tops = tier < 0.34 ? 2 : 3
-  for (let i = 0; i < tops; i++) {
-    const t = (i - (tops - 1) / 2) * 0.42
-    const r = base * rand(0.34, 0.5)
-    puffs.push({ dx: t * base * 1.5, dy: -base * 0.62 - r * 0.7, r, tone: 1 })
-  }
-
-  return {
-    hx,
-    hy,
-    rx: rand(60, 150),
-    ry: rand(20, 55),
-    x: hx,
-    y: hy,
-    vx: rand(-0.015, 0.015),
-    vy: rand(-0.006, 0.006),
-    alpha: rand(0.86, 0.97),
-    puffs,
-  }
-}
-
 function buildStars() {
   const count = Math.max(40, Math.min(200, Math.round((width * height) / props.density)))
   stars = Array.from({ length: count }, makeStar)
-}
-
-function buildClouds() {
-  const n = Math.max(5, Math.min(8, Math.round(width / 290)))
-  // 顶部带多放几朵，左右留白各一朵，保证卡片旁边也有云
-  const plan = ['top', 'top', 'left', 'right', 'top', 'left', 'right', 'top'].slice(0, n)
-
-  clouds = []
-  for (const region of plan) {
-    let spot = null
-    for (let tries = 0; tries < 8; tries++) {
-      const candidate = pickCloudSpot(region)
-      const tooClose = clouds.some((c) => Math.hypot(c.hx - candidate.x, c.hy - candidate.y) < 230)
-      spot = candidate
-      if (!tooClose) break
-    }
-    clouds.push(makeCloud(region, spot))
-  }
 }
 
 /* ------------------------------------------------------------------ 太阳与天色 */
@@ -251,7 +176,6 @@ function refreshSky() {
   sunCss = sunColor(altitude).css
   sunAlpha = sunVisibility(altitude)
   starsVisible = starAlpha(altitude)
-  cloudsVisible = cloudAlpha(altitude)
 
   // 与月亮共用同一条圆弧
   const sunPos = arcPos(altitude, azimuth)
@@ -382,22 +306,6 @@ function stepStars(dt) {
     if (s.x > maxX) { s.x = maxX; s.vx = -Math.abs(s.vx) * 0.4 }
     if (s.y < minY) { s.y = minY; s.vy = Math.abs(s.vy) * 0.4 }
     if (s.y > maxY) { s.y = maxY; s.vy = -Math.abs(s.vy) * 0.4 }
-  }
-}
-
-function stepClouds(dt) {
-  const k = Math.min(dt, 32) / 16.67
-  for (const c of clouds) {
-    c.vx += rand(-0.002, 0.002) * k
-    c.vy += rand(-0.0015, 0.0015) * k
-    c.vx += (c.hx - c.x) * 0.0002 * k
-    c.vy += (c.hy - c.y) * 0.0002 * k
-    c.vx *= 0.99
-    c.vy *= 0.99
-    c.x += c.vx * k
-    c.y += c.vy * k
-    c.x = Math.max(Math.max(0, c.hx - c.rx), Math.min(Math.min(width, c.hx + c.rx), c.x))
-    c.y = Math.max(Math.max(0, c.hy - c.ry), Math.min(Math.min(height, c.hy + c.ry), c.y))
   }
 }
 
@@ -596,73 +504,6 @@ function drawStars() {
  *   ③ 每个大鼓包底边再补一小块阴影，做出"一朵朵"的分离感
  *   ④ 顶部几处高光，让云顶更亮
  */
-function drawClouds() {
-  if (cloudsVisible <= 0.01) return
-
-  for (const c of clouds) {
-    const a = c.alpha * cloudsVisible
-    if (a <= 0.02) continue
-
-    let minX = Infinity
-    let maxX = -Infinity
-    let baseY = -Infinity
-    for (const p of c.puffs) {
-      const px = c.x + p.dx
-      const py = c.y + p.dy
-      minX = Math.min(minX, px - p.r)
-      maxX = Math.max(maxX, px + p.r)
-      baseY = Math.max(baseY, py + p.r)
-    }
-
-    // ① 先画平底（后面叠上的泡泡会把它的上沿盖掉，只剩一条水平底边）
-    const w = maxX - minX
-    const baseH = Math.max(8, w * 0.07)
-    const bx = minX + baseH * 0.2
-    const by = baseY - baseH * 0.45
-    const bw = Math.max(4, w - baseH * 0.4)
-    const rr = baseH / 2
-
-    ctx.beginPath()
-    ctx.moveTo(bx + rr, by)
-    ctx.lineTo(bx + bw - rr, by)
-    ctx.arc(bx + bw - rr, by + rr, rr, -Math.PI / 2, Math.PI / 2)
-    ctx.lineTo(bx + rr, by + baseH)
-    ctx.arc(bx + rr, by + rr, rr, Math.PI / 2, -Math.PI / 2)
-    ctx.closePath()
-    const gb = ctx.createLinearGradient(0, by, 0, by + baseH)
-    gb.addColorStop(0, `rgba(252,254,255,${a})`)
-    gb.addColorStop(1, `rgba(228,242,253,${a})`)
-    ctx.fillStyle = gb
-    ctx.fill()
-    ctx.lineWidth = Math.max(1, baseH * 0.13)
-    ctx.strokeStyle = `rgba(190, 219, 242, ${0.7 * a})`
-    ctx.stroke()
-
-    // ② 再按半径从大到小叠泡泡：后画的实心圆会盖住前面的描边，
-    //    只在交界处留下淡淡的弧线——这才是参考图的观感
-    const puffs = [...c.puffs].sort((p, q) => q.r - p.r)
-    for (const p of puffs) {
-      const px = c.x + p.dx
-      const py = c.y + p.dy
-      const r = p.r
-
-      const g = ctx.createLinearGradient(px, py - r, px, py + r)
-      g.addColorStop(0, `rgba(255,255,255,${a})`)
-      g.addColorStop(0.55, `rgba(250,253,255,${a * p.tone})`)
-      g.addColorStop(1, `rgba(230,243,253,${a})`)
-      ctx.fillStyle = g
-      ctx.beginPath()
-      ctx.arc(px, py, r, 0, Math.PI * 2)
-      ctx.fill()
-
-      // 淡蓝交界弧：细一点、浅一点
-      ctx.lineWidth = Math.max(1, r * 0.035)
-      ctx.strokeStyle = `rgba(196, 224, 245, ${0.55 * a})`
-      ctx.stroke()
-    }
-  }
-}
-
 function drawEvents() {
   const now = performance.now()
 
@@ -748,7 +589,6 @@ function draw() {
   drawSun()
   drawMoon()
   drawStars()
-  drawClouds()
   drawEvents()
 }
 
@@ -771,7 +611,6 @@ function resize() {
   cachedGradient = null
 
   if (resized || !stars.length) buildStars()
-  if (resized || !clouds.length) buildClouds()
   refreshSky()
   if (!nextEventAt) scheduleNextEvent(performance.now())
   draw()
@@ -783,7 +622,6 @@ function loop(ts) {
   last = ts
   refreshSky()
   stepStars(dt)
-  stepClouds(dt)
   stepEvents(dt)
   draw()
   raf = requestAnimationFrame(loop)
@@ -872,7 +710,6 @@ onMounted(() => {
     get hour() { return renderHour },
     get sun() { return { altitude: sunAlt, azimuth: sunAz, x: sunX, y: sunY, alpha: sunAlpha, color: sunCss } },
     get sky() { return { top: palette.top, mid: palette.mid, bottom: palette.bottom } },
-    get clouds() { return clouds },
     get starsVisible() { return starsVisible },
     get moon() { return { altitude: moonAlt, azimuth: moonAz, fraction: moonFrac, phase: moonPhase, x: moonX, y: moonY, alpha: moonAlpha } },
     // 仅供测试：临时覆盖月相与屏幕位置，验证不同月牙形状的绘制
@@ -880,7 +717,6 @@ onMounted(() => {
       moonOverride = { frac: fraction, phase, x: xRatio, y: yRatio }
     },
     __clearMoonOverride() { moonOverride = null },
-    get cloudsVisible() { return cloudsVisible },
     get phase() { return phaseText.value },
     spawn: (t) => spawnEvent(t),
     get events() { return events },
