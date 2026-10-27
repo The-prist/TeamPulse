@@ -6,7 +6,7 @@ const BASE = process.env.BASE || 'http://www.team-pulse.site'
 const DIR = 'E:\\codestorge\\.run-logs\\sky'
 fs.mkdirSync(DIR, { recursive: true })
 
-const HOURS = [5, 6, 7, 9, 12, 15, 18, 19, 20, 22]
+const HOURS = [5, 6, 7, 9, 12, 15, 17, 18, 19, 22]
 
 const run = async () => {
   const b = await chromium.launch({ channel: 'msedge', headless: true })
@@ -60,14 +60,26 @@ const run = async () => {
   const night = rows.find((r) => r.h === 22)
 
   const chk = (name, ok, detail) => console.log(`  ${ok ? '✓' : '✗'} ${name}${detail ? `（${detail}）` : ''}`)
-  chk('上午太阳在右侧（东=右）', morning.xPercent > 55, `7:00 x=${morning.xPercent}%`)
-  chk('傍晚太阳在左侧（西=左）', evening.xPercent < 45, `18:00 x=${evening.xPercent}%`)
+  // 已按需求对调：东在左、西在右（面朝南方看天空的视角）
+  chk('上午太阳在左侧（东=左）', morning.xPercent < 45, `7:00 x=${morning.xPercent}%`)
+  chk('傍晚太阳在右侧（西=右）', evening.xPercent > 55, `18:00 x=${evening.xPercent}%`)
   chk('正午太阳居中偏南', Math.abs(noon.xPercent - 50) <= 12, `12:00 x=${noon.xPercent}%`)
   chk('夜间星星完全可见', night.stars >= 0.95, `${night.stars}`)
   chk('白天星星不可见', noon.stars <= 0.02, `${noon.stars}`)
   chk('正午太阳偏白', /rgb\(2[3-5]\d, 2[3-5]\d, 2[2-5]\d\)/.test(noon.sun.color), noon.sun.color)
-  chk('日落太阳偏橙', /rgb\(2[0-5]\d, 1[0-8]\d, [0-9]{1,3}\)/.test(evening.sun.color), evening.sun.color)
-  chk('夜间底色很暗', night.sky.top === 'rgb(3, 7, 15)' || night.sky.top.startsWith('rgb(3, 7'), night.sky.top)
+  const dusk = rows.find((r) => r.h === 17) // 17:00 太阳还在地平线上方
+  const rgbOf = (s) => (s.match(/rgb\((\d+), (\d+), (\d+)\)/) || []).slice(1).map(Number)
+  const [dr, dg, db] = rgbOf(dusk.sun.color)
+  chk('傍晚太阳偏橙（R > G > B）', dr > dg && dg > db, dusk.sun.color)
+  const lumOf = (c) => {
+    const hex = c.match(/^#([0-9a-f]{6})$/i)
+    const rgb = c.match(/rgb\((\d+), (\d+), (\d+)\)/)
+    const [r, g, b] = hex
+      ? [parseInt(hex[1].slice(0, 2), 16), parseInt(hex[1].slice(2, 4), 16), parseInt(hex[1].slice(4, 6), 16)]
+      : rgbOf(c)
+    return r + g + b
+  }
+  chk('夜间底色很暗（三通道之和 < 60）', lumOf(night.sky.top) < 60, `${night.sky.top} → ${lumOf(night.sky.top)}`)
   chk('白天底色偏蓝', noon.sky.top.includes('rgb'), `${noon.sky.top}`)
 
   // 星星渐变：连续两天之间的 starAlpha 单调

@@ -22,6 +22,9 @@ import {
   beijingDateAtHour,
   beijingHour,
   cloudAlpha,
+  moonIllumination,
+  moonPhaseName,
+  moonPosition,
   skyPalette,
   starAlpha,
   sunColor,
@@ -49,6 +52,7 @@ const clock = ref('')
 const phaseText = ref('')
 const sunInfo = ref('')
 const dragging = ref(false)
+const collapsed = ref(false)
 
 let stars = []
 let clouds = []
@@ -71,6 +75,17 @@ let sunY = 0.5
 let sunR = 40
 let cachedGradient = null
 let cachedGradientKey = ''
+let moonAlt = 0
+let moonAz = 0
+let moonFrac = 0
+let moonPhase = 0
+let moonAlpha = 0
+let moonX = 0
+let moonY = 0
+let moonR = 24
+const moonLabel = ref('')
+/** 测试用：固定月相与位置（null 表示跟随真实天文计算） */
+let moonOverride = null
 
 const mouse = { x: -9999, y: -9999, active: false }
 const rand = (a, b) => a + Math.random() * (b - a)
@@ -176,13 +191,39 @@ function refreshSky() {
   starsVisible = starAlpha(altitude)
   cloudsVisible = cloudAlpha(altitude)
 
-  // 屏幕坐标：方位角 → 横向（东右西左），高度角 → 纵向
-  sunX = azimuthToX(azimuth, true) * width
+  // 屏幕坐标：方位角 → 横向（东在左、西在右，按"面朝南方看天空"的视角），高度角 → 纵向
+  // 横向内缩 6%：真实方位角会跑到 0%/100%，直接映射的话太阳月亮会被屏幕边缘切掉
+  sunX = (0.06 + 0.88 * azimuthToX(azimuth, false)) * width
   // 45° 以上按天顶处理：这样正午（本季节约 37°）时太阳能升到卡片上方，
   // 不会被中间的登录卡片挡住；低太阳时方位角偏东西，本来就落在左右留白里
   const altNorm = clamp01(altitude / 42)
-  sunY = height * 0.94 - Math.pow(altNorm, 0.75) * height * 0.92
+  sunY = height * 0.94 - Math.pow(altNorm, 0.75) * height * 0.86
   sunR = Math.max(26, Math.min(56, width * 0.032)) * (1 + (1 - altNorm) * 0.18)
+
+  // ---- 月亮：位置、月相、可见度
+  const moon = moonPosition(date)
+  moonAlt = moon.altitude
+  moonAz = moon.azimuth
+  const illum = moonIllumination(date)
+  moonFrac = illum.fraction
+  moonPhase = illum.phase
+  moonX = (0.06 + 0.88 * azimuthToX(moonAz, false)) * width
+  moonY = height * 0.94 - Math.pow(clamp01(moonAlt / 42), 0.75) * height * 0.86
+  moonR = sunR * 0.92
+  // 高度角 < -1.5° 时落到地平线下；白天月亮仍然可见，只是被天空压暗
+  const dayFactor = 1 - 0.55 * clamp01((altitude + 4) / 14)
+  moonAlpha = Math.max(0, Math.min(1, (moonAlt + 1.5) / 4)) * dayFactor
+  moonLabel.value = `${moonPhaseName(moonPhase)} ${(moonFrac * 100).toFixed(0)}%`
+
+  if (moonOverride) {
+    moonFrac = moonOverride.frac
+    moonPhase = moonOverride.phase
+    moonX = width * moonOverride.x
+    moonY = height * moonOverride.y
+    moonAlpha = 1
+    moonR = Math.max(34, Math.min(64, width * 0.037)) * 0.92
+    moonLabel.value = `测试月相 ${(moonFrac * 100).toFixed(0)}%`
+  }
 
   // 调试信息
   const hh = Math.floor(renderHour)
@@ -386,6 +427,84 @@ function drawSun() {
   ctx.globalAlpha = 1
 }
 
+/**
+ * 画月亮（含真实月相）
+ *
+ * 月相形状用逐行扫描填充：对每一行 y，圆面上该行的水平半宽是
+ *   half = sqrt(r² − y²)
+ * 终结线在该行的横坐标是 aNorm·half，其中 aNorm = 1 − 2·fraction：
+ *   waxing（0<phase<0.5）亮面在右，填充 [aNorm·half, half]
+ *   waning（0.5<phase<1）亮面在左，填充 [−half, −aNorm·half]
+ * f=0.5 时 aNorm=0 → 正好是半圆；f→0 退化成细月牙；f→1 变成满圆。
+ */
+function drawMoon() {
+  if (moonAlpha <= 0.01) return
+
+  const f = moonFrac
+  const waxing = moonPhase < 0.5
+  const aNorm = 1 - 2 * f
+
+  ctx.save()
+
+  // ① 整轮暗面（地照），让新月也能看出圆盘位置
+  ctx.globalAlpha = moonAlpha * 0.5
+  ctx.fillStyle = 'rgba(24, 34, 52, 0.85)'
+  ctx.beginPath()
+  ctx.arc(moonX, moonY, moonR, 0, Math.PI * 2)
+  ctx.fill()
+
+  // ② 柔光
+  const halo = ctx.createRadialGradient(moonX, moonY, moonR * 0.9, moonX, moonY, moonR * 3.4)
+  halo.addColorStop(0, `rgba(226, 236, 250, ${0.22 * moonAlpha})`)
+  halo.addColorStop(1, 'rgba(226, 236, 250, 0)')
+  ctx.globalAlpha = 1
+  ctx.fillStyle = halo
+  ctx.beginPath()
+  ctx.arc(moonX, moonY, moonR * 3.4, 0, Math.PI * 2)
+  ctx.fill()
+
+  // ③ 亮面：逐行填充
+  ctx.globalAlpha = moonAlpha
+  ctx.fillStyle = '#f2f5ec'
+  const step = Math.max(0.5, moonR / 48)
+  for (let dy = -moonR; dy <= moonR; dy += step) {
+    const half = Math.sqrt(Math.max(0, moonR * moonR - dy * dy))
+    let x0
+    let x1
+    if (waxing) {
+      x0 = aNorm * half
+      x1 = half
+    } else {
+      x0 = -half
+      x1 = -aNorm * half
+    }
+    const w = x1 - x0
+    if (w <= 0.05) continue
+    ctx.fillRect(moonX + x0, moonY + dy, w, step + 0.4)
+  }
+
+  // ④ 环形山质感：只在亮面范围内点几处淡灰
+  ctx.globalAlpha = moonAlpha * 0.16
+  ctx.fillStyle = '#9aa6b4'
+  for (const [cx, cy, cr] of [
+    [-0.28, -0.22, 0.16],
+    [0.1, -0.36, 0.1],
+    [0.24, 0.12, 0.13],
+    [-0.12, 0.3, 0.09],
+    [0.02, 0.02, 0.07],
+  ]) {
+    const px = moonX + cx * moonR
+    const py = moonY + cy * moonR
+    // 只画在亮面那一侧，避免月牙被灰点污染
+    if (waxing ? px < moonX + aNorm * moonR : px > moonX - aNorm * moonR) continue
+    ctx.beginPath()
+    ctx.arc(px, py, cr * moonR, 0, Math.PI * 2)
+    ctx.fill()
+  }
+
+  ctx.restore()
+}
+
 function drawStars() {
   if (starsVisible <= 0.01) return
   const now = performance.now()
@@ -546,6 +665,7 @@ function draw() {
   if (!ctx) return
   drawSky()
   drawSun()
+  drawMoon()
   drawStars()
   drawClouds()
   drawEvents()
@@ -672,6 +792,12 @@ onMounted(() => {
     get sun() { return { altitude: sunAlt, azimuth: sunAz, x: sunX, y: sunY, alpha: sunAlpha, color: sunCss } },
     get sky() { return { top: palette.top, mid: palette.mid, bottom: palette.bottom } },
     get starsVisible() { return starsVisible },
+    get moon() { return { altitude: moonAlt, azimuth: moonAz, fraction: moonFrac, phase: moonPhase, x: moonX, y: moonY, alpha: moonAlpha } },
+    // 仅供测试：临时覆盖月相与屏幕位置，验证不同月牙形状的绘制
+    __setMoonPhase(fraction, phase = fraction, xRatio = 0.5, yRatio = 0.3) {
+      moonOverride = { frac: fraction, phase, x: xRatio, y: yRatio }
+    },
+    __clearMoonOverride() { moonOverride = null },
     get cloudsVisible() { return cloudsVisible },
     get phase() { return phaseText.value },
     spawn: (t) => spawnEvent(t),
@@ -697,15 +823,29 @@ onBeforeUnmount(() => {
   <section class="debug-card" aria-label="天空调试">
     <header class="dc-head">
       <span class="dc-title">调试 · 天空</span>
-      <span class="dc-clock">{{ clock }}</span>
+      <span class="dc-right">
+        <span class="dc-clock">{{ clock }}</span>
+        <button
+          type="button"
+          class="dc-collapse"
+          :aria-label="collapsed ? '展开调试卡片' : '折叠调试卡片'"
+          :title="collapsed ? '展开' : '折叠'"
+          @click="collapsed = !collapsed"
+        >{{ collapsed ? '▸' : '▾' }}</button>
+      </span>
     </header>
 
-    <div class="dc-row">
+    <div v-show="!collapsed" class="dc-row">
       <span class="dc-phase">{{ phaseText }}</span>
       <span class="dc-sun">{{ sunInfo }}</span>
     </div>
 
-    <div class="dc-slider">
+    <div v-show="!collapsed" class="dc-row dc-moon">
+      <span class="dc-moon-label">月亮 {{ moonLabel }}</span>
+      <span class="dc-sun">高度 {{ moonAlt.toFixed(0) }}°　方位 {{ moonAz.toFixed(0) }}°</span>
+    </div>
+
+    <div v-show="!collapsed" class="dc-slider">
       <input
         type="range"
         min="0"
@@ -721,15 +861,15 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <div class="dc-actions">
+    <div v-show="!collapsed" class="dc-actions">
       <button type="button" class="dc-btn" @click="triggerEffect">触发动效</button>
       <button type="button" class="dc-btn ghost" :disabled="previewHour === null" @click="backToNow">
         回到现在
       </button>
     </div>
 
-    <p v-if="previewHour !== null" class="dc-hint">预览中：拖动滑块观察不同时刻，点「回到现在」恢复实时</p>
-    <p v-else class="dc-hint">跟随北京时间实时渲染</p>
+    <p v-show="!collapsed" v-if="previewHour !== null" class="dc-hint">预览中：拖动滑块观察不同时刻，点「回到现在」恢复实时</p>
+    <p v-show="!collapsed" v-else class="dc-hint">跟随北京时间实时渲染</p>
   </section>
 </template>
 
@@ -774,6 +914,31 @@ onBeforeUnmount(() => {
   letter-spacing: 0.4px;
 }
 
+.dc-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dc-collapse {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.dc-collapse:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
 .dc-clock {
   font-size: 15px;
   font-weight: 700;
@@ -796,6 +961,15 @@ onBeforeUnmount(() => {
 
 .dc-sun {
   font-variant-numeric: tabular-nums;
+}
+
+.dc-moon {
+  margin-top: -4px;
+}
+
+.dc-moon-label {
+  color: #ffd9a0;
+  font-weight: 600;
 }
 
 .dc-slider input[type='range'] {

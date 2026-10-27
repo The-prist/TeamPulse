@@ -202,3 +202,89 @@ export function cloudAlpha(altitude) {
 export function sunVisibility(altitude) {
   return smoothstep(-1.2, 1.6, altitude)
 }
+
+/* ================================================================== 月亮 */
+
+/** 黄纬 b 的赤纬（太阳那条只算了 b=0） */
+const declinationLB = (l, b) =>
+  Math.asin(Math.sin(b) * Math.cos(OBLIQUITY) + Math.cos(b) * Math.sin(OBLIQUITY) * Math.sin(l))
+const rightAscensionLB = (l, b) =>
+  Math.atan2(
+    Math.sin(l) * Math.cos(OBLIQUITY) - Math.tan(b) * Math.sin(OBLIQUITY),
+    Math.cos(l),
+  )
+
+/** 月球地心坐标（SunCalc 同源的简化式，误差 ~1°） */
+function moonCoords(d) {
+  const L = RAD * (218.316 + 13.176396 * d) // 平黄经
+  const M = RAD * (134.963 + 13.064993 * d) // 平近点角
+  const F = RAD * (93.272 + 13.22935 * d) // 升交点角距
+
+  const l = L + RAD * 6.289 * Math.sin(M) // 黄经（主要摄动项）
+  const b = RAD * 5.128 * Math.sin(F) // 黄纬
+  const dist = 385001 - 20905 * Math.cos(M) // 地月距离 km
+
+  return { ra: rightAscensionLB(l, b), dec: declinationLB(l, b), dist }
+}
+
+function sunCoords(d) {
+  const M = solarMeanAnomaly(d)
+  const L = eclipticLongitude(M)
+  return { dec: declination(L), ra: rightAscension(L) }
+}
+
+/**
+ * 月亮位置：高度角（含大气折射修正）与方位角（正北顺时针）
+ */
+export function moonPosition(date, { lat, lng } = BEIJING) {
+  const phi = RAD * lat
+  const lw = RAD * -lng
+  const d = toDays(date)
+  const c = moonCoords(d)
+  const H = siderealTime(d, lw) - c.ra
+
+  let h = Math.asin(Math.sin(phi) * Math.sin(c.dec) + Math.cos(phi) * Math.cos(c.dec) * Math.cos(H))
+  // 大气折射：贴近地平线时月亮看起来更高
+  h += RAD * 0.017 / Math.tan(h + RAD * 10.26 / (h + RAD * 5.1))
+
+  const pa = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(phi) - Math.tan(c.dec) * Math.cos(phi))
+  const azimuth = (((pa / RAD + 180) % 360) + 360) % 360
+
+  return { altitude: h / RAD, azimuth, distance: c.dist }
+}
+
+/**
+ * 月相：phase 0=新月 0.25=上弦 0.5=满月 0.75=下弦；fraction 为被照亮的比例
+ */
+export function moonIllumination(date) {
+  const d = toDays(date)
+  const s = sunCoords(d)
+  const m = moonCoords(d)
+  const sunDist = 149598000 // 日地距离 km
+
+  const phi = Math.acos(
+    Math.sin(s.dec) * Math.sin(m.dec) + Math.cos(s.dec) * Math.cos(m.dec) * Math.cos(s.ra - m.ra),
+  )
+  const inc = Math.atan2(sunDist * Math.sin(phi), m.dist - sunDist * Math.cos(phi))
+  const angle = Math.atan2(
+    Math.cos(s.dec) * Math.sin(s.ra - m.ra),
+    Math.sin(s.dec) * Math.cos(m.dec) - Math.cos(s.dec) * Math.sin(m.dec) * Math.cos(s.ra - m.ra),
+  )
+
+  const fraction = (1 + Math.cos(inc)) / 2
+  const phase = 0.5 + (0.5 * inc * (angle < 0 ? -1 : 1)) / Math.PI
+  return { fraction, phase: (phase + 1) % 1, angle }
+}
+
+/** 月相中文名 */
+export function moonPhaseName(phase) {
+  const p = ((phase % 1) + 1) % 1
+  if (p < 0.03 || p > 0.97) return '新月'
+  if (p < 0.22) return '蛾眉月'
+  if (p < 0.28) return '上弦月'
+  if (p < 0.47) return '盈凸月'
+  if (p < 0.53) return '满月'
+  if (p < 0.72) return '亏凸月'
+  if (p < 0.78) return '下弦月'
+  return '残月'
+}
