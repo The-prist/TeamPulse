@@ -477,7 +477,7 @@ onMounted(load)
 :deep(.el-card__header) {
   padding: 20px 24px;
   border-bottom: 1px solid var(--tp-border);
-  background: #fafbfc;
+  background: var(--tp-bg-subtle);
 }
 
 :deep(.el-card__body) {
@@ -486,7 +486,7 @@ onMounted(load)
 
 .admin-page {
   padding: 24px;
-  background-color: #f5f5f5;
+  background-color: var(--tp-bg-page);
   min-height: 100vh;
 }
 
@@ -532,7 +532,7 @@ onMounted(load)
 :deep(.el-card__header) {
   padding: 20px 24px;
   border-bottom: 1px solid var(--tp-border);
-  background: #fafbfc;
+  background: var(--tp-bg-subtle);
 }
 
 :deep(.el-card__body) {

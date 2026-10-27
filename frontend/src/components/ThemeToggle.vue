@@ -2,7 +2,7 @@
   主题切换按钮（左下角弯月）
 
   动效两段：
-    ① 覆盖层用 clip-path 圆从按钮位置扩张到铺满全屏（420ms）
+    ① 覆盖层（目标主题色）用 clip-path 圆从按钮位置扩张到铺满全屏（420ms）
     ② 主题切换完成后，覆盖层用 mask 以「屏幕中心的圆」向外揭开（620ms）
 
   两个实现要点（都踩过）：
@@ -59,7 +59,9 @@ async function toggle(event) {
     'height:100vh',
     'pointer-events:none',
     'z-index:4000',
-    `background:${bgOf(from)}`, // 用旧主题底色：扩张时像把当前界面收拢，揭开时对比明显
+    // 用「目标主题」底色：亮→暗时看到的就是暗色从按钮扩散开（暗色先铺满，再从中心揭开）
+    // 之后中心圆揭开时，露出的页面上有内容（卡片/文字），与纯色遮罩的区别足以看清边界
+    `background:${bgOf(next)}`,
     `clip-path:circle(0px at ${cx}px ${cy}px)`,
     'will-change:clip-path,opacity',
   ].join(';')

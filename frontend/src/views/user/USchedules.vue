@@ -553,7 +553,7 @@ onMounted(load)
 }
 
 .status-pending {
-  background: #fdf6ec;
+  background: var(--tp-bg-subtle);
   color: #e6a23c;
 }
 

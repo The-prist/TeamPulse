@@ -10,6 +10,7 @@ import App from './App.vue'
 import router from './router'
 import './styles/index.css'
 import './styles/theme.css'
+import './styles/dark-fixes.css'
 import { initTheme } from './utils/theme'
 
 // 必须在 mount 之前确定主题，否则暗色用户会看到一帧白屏

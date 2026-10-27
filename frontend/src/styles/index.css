@@ -68,6 +68,44 @@ body {
   /* 注意：不要覆盖 --el-fill-color-blank。
      它同时被 .el-card 和 .el-input 使用，改蓝会让输入框和卡片同色、失去可编辑的视觉提示。
      卡片底色改用下面显式的 .el-card 规则控制。 */
+  /* Element Plus 主色：默认 #409eff 上白字只有 2.78:1（WCAG AA 需 4.5），
+     统一到品牌蓝 #2f6fd0（约 5:1）。success 同理换深绿。 */
+  --el-color-primary: #2f6fd0;
+  --el-color-primary-light-3: #5c8fe0;
+  --el-color-primary-light-5: #86ade8;
+  --el-color-primary-light-7: #b0ccef;
+  --el-color-primary-light-8: #c7daf4;
+  --el-color-primary-light-9: #e3edf9;
+  --el-color-primary-dark-2: #2659a6;
+  /* 默认 #67c23a 上的白字只有 2.2:1，连亮色主题都不达标；换深绿保证 4.5:1 */
+  --el-color-success: #2e7d32;
+  --el-color-success-light-3: #4f9253;
+  --el-color-success-light-5: #74a877;
+  --el-color-success-light-7: #a3c6a5;
+  --el-color-success-light-8: #c1d7c2;
+  --el-color-success-light-9: #e6efe6;
+  --el-color-success-dark-2: #256428;
+  --el-color-danger: #c0392b;
+  --el-color-danger-light-3: #d0645a;
+  --el-color-danger-light-5: #dd8a82;
+  --el-color-danger-light-7: #e9b3ad;
+  --el-color-danger-light-8: #efc7c3;
+  --el-color-danger-light-9: #f7e4e2;
+  --el-color-danger-dark-2: #9a2e22;
+  --el-color-error: #c0392b;
+  --el-color-error-light-3: #d0645a;
+  --el-color-error-light-5: #dd8a82;
+  --el-color-error-light-7: #e9b3ad;
+  --el-color-error-light-8: #efc7c3;
+  --el-color-error-light-9: #f7e4e2;
+  --el-color-error-dark-2: #9a2e22;
+  --el-color-warning: #a86b00;
+  --el-color-warning-light-3: #c08a2a;
+  --el-color-warning-light-5: #d0a659;
+  --el-color-warning-light-7: #dfc48f;
+  --el-color-warning-light-8: #e8d5b3;
+  --el-color-warning-light-9: #f3ecdf;
+  --el-color-warning-dark-2: #865600;
   --el-text-color-primary: var(--tp-text);
   --el-text-color-regular: #2c4a68;
 }

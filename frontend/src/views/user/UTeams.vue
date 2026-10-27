@@ -1852,7 +1852,7 @@ onMounted(load)
 .schedule-item {
   padding: 16px;
   border-bottom: 1px solid var(--tp-border);
-  background: #fafbfc;
+  background: var(--tp-bg-subtle);
   border-radius: 8px;
   margin-bottom: 12px;
 }

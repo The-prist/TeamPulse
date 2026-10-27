@@ -153,7 +153,7 @@ async function handleLogout() {
   font-size: 13.5px;
 }
 .menu :deep(.el-menu-item.is-active) {
-  background: #ecfdf5;
+  background: var(--tp-primary-soft);
   color: var(--tp-primary);
   font-weight: 600;
 }

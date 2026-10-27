@@ -955,7 +955,7 @@ onMounted(load)
 }
 .tip-item.tip-warning {
   border-left-color: #f59e0b;
-  background: #fffaf0;
+  background: var(--tp-bg-subtle);
 }
 .tip-item.tip-error {
   border-left-color: #ef4444;

@@ -303,7 +303,7 @@ onMounted(load)
   padding: 6px;
   border-right: 1px solid var(--tp-border);
   border-bottom: 1px solid var(--tp-border);
-  background: #fcfdff;
+  background: var(--tp-bg-card);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -311,7 +311,7 @@ onMounted(load)
   transition: background-color 0.15s ease;
 }
 .cal-cell:hover {
-  background: #f4f9ff;
+  background: var(--tp-bg-subtle);
 }
 .cal-cell.is-weekend {
   background: #f8fbff;

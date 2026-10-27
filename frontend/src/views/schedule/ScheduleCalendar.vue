@@ -438,7 +438,7 @@ onMounted(load)
   padding: 6px;
   border-right: 1px solid var(--tp-border);
   border-bottom: 1px solid var(--tp-border);
-  background: #fcfdff;
+  background: var(--tp-bg-card);
   display: flex;
   flex-direction: column;
   gap: 4px;

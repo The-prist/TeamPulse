@@ -366,7 +366,7 @@ onMounted(() => {
 :deep(.el-card__header) {
   padding: 20px 24px;
   border-bottom: 1px solid var(--tp-border);
-  background: #fafbfc;
+  background: var(--tp-bg-subtle);
 }
 
 :deep(.el-card__body) {

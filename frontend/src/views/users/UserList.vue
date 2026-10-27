@@ -263,7 +263,7 @@ onMounted(async () => {
 <style scoped>
 .admin-page {
   padding: 24px;
-  background-color: #f5f5f5;
+  background-color: var(--tp-bg-page);
   min-height: 100vh;
 }
 

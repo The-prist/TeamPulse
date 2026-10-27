@@ -101,8 +101,8 @@ html.dark {
   --tp-border-strong: #3a4756;
 
   --tp-text: #e6edf3;
-  --tp-text-muted: #9aa8b8;
-  --tp-text-faint: #6e7d8d;
+  --tp-text-muted: #adbac9;
+  --tp-text-faint: #97a5b6;
 
   --tp-primary: #4d8bf0;
   --tp-primary-soft: #1b2a44;
@@ -136,6 +136,54 @@ html.dark {
   --el-fill-color-blank: var(--tp-bg-card);
   --el-disabled-bg-color: #1b232d;
   --el-mask-color: rgba(6, 10, 15, 0.75);
+  /* 暗色下 EP 变量需要重复声明一遍（它的 dark/css-vars.css 用的是 html.dark，优先级更高） */
+  --el-color-primary: #2f6fd0;
+  --el-color-primary-light-3: #1b2b45;
+  --el-color-primary-light-5: #223552;
+  --el-color-primary-light-7: #2c4a75;
+  --el-color-primary-light-8: #3d63a0;
+  --el-color-primary-light-9: #16233a;
+  --el-color-primary-dark-2: #2659a6;
+
+  /* 语义色统一压深：实心按钮上的白字才有 4.5:1，浅底上的彩色文字同理 */
+  --el-color-success: #2e7d32;
+  --el-color-success-light-3: #183020;
+  --el-color-success-light-5: #1d3c28;
+  --el-color-success-light-7: #265032;
+  --el-color-success-light-8: #347040;
+  --el-color-success-light-9: #14251a;
+  --el-color-success-dark-2: #256428;
+
+  --el-color-warning: #a86b00;
+  --el-color-warning-light-3: #33271a;
+  --el-color-warning-light-5: #3d2f1e;
+  --el-color-warning-light-7: #523f26;
+  --el-color-warning-light-8: #7a5c30;
+  --el-color-warning-light-9: #2a2013;
+  --el-color-warning-dark-2: #865600;
+
+  --el-color-danger: #c0392b;
+  --el-color-danger-light-3: #331a17;
+  --el-color-danger-light-5: #3d1f1b;
+  --el-color-danger-light-7: #522824;
+  --el-color-danger-light-8: #7a352e;
+  --el-color-danger-light-9: #2a1614;
+  --el-color-danger-dark-2: #9a2e22;
+
+  --el-color-error: #c0392b;
+  --el-color-error-light-3: #331a17;
+  --el-color-error-light-5: #3d1f1b;
+  --el-color-error-light-7: #522824;
+  --el-color-error-light-8: #7a352e;
+  --el-color-error-light-9: #2a1614;
+  --el-color-error-dark-2: #9a2e22;
+
+
+  /* 深底上的彩色文字（标签 / 文字按钮）用浅同色系，保证 4.5:1 */
+  --tp-text-primary-color: #8ab4f8;
+  --tp-text-success-color: #7ed08a;
+  --tp-text-danger-color: #f7a49d;
+  --tp-text-warning-color: #e2b45c;
 }
 
 html.dark body {
@@ -342,3 +390,30 @@ html.dark .att-cal-cell {
   background: var(--tp-bg-card);
   border-color: var(--tp-border);
 }
+
+/* ---------------------------------------------------------------- G. 标签与文字按钮 */
+/*
+  同一组语义色要同时满足两种场景：
+    - 实心按钮底色：需要"深"（白字才够对比）→ --el-color-*
+    - 彩色文字：需要"浅"（深底上才够对比）→ 下面这组 --tp-text-*-color
+  二者的取值方向相反，所以必须分开，不能只调一个变量。
+*/
+html.dark .el-tag--primary { --el-tag-text-color: var(--tp-text-primary-color); }
+html.dark .el-tag--success { --el-tag-text-color: var(--tp-text-success-color); }
+html.dark .el-tag--danger,
+html.dark .el-tag--error { --el-tag-text-color: var(--tp-text-danger-color); }
+html.dark .el-tag--warning { --el-tag-text-color: var(--tp-text-warning-color); }
+html.dark .el-tag--info { --el-tag-text-color: var(--tp-text-muted); }
+
+html.dark .el-button.is-link.el-button--primary,
+html.dark .el-button.is-text.el-button--primary { color: var(--tp-text-primary-color) !important; }
+html.dark .el-button.is-link.el-button--success,
+html.dark .el-button.is-text.el-button--success { color: var(--tp-text-success-color) !important; }
+html.dark .el-button.is-link.el-button--danger,
+html.dark .el-button.is-text.el-button--danger { color: var(--tp-text-danger-color) !important; }
+html.dark .el-button.is-link.el-button--warning,
+html.dark .el-button.is-text.el-button--warning { color: var(--tp-text-warning-color) !important; }
+html.dark .el-button.is-link { color: var(--tp-text-primary-color) !important; }
+
+/* 标签底色：effect=light 时用暗 tint，避免"浅底亮字" */
+html.dark .el-tag { --el-tag-bg-color: rgba(255, 255, 255, 0.08); --el-tag-border-color: rgba(255, 255, 255, 0.16); }

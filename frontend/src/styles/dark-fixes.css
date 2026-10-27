@@ -1,0 +1,519 @@
+/* =====================================================================
+   暗色模式 · 对比度修补
+
+   来源：tests/ui/audit-contrast.mjs 的实测结果（light 主题写死的文字色
+   在暗色底上算出来的对比度，例如 #0f172a on #161b22 ≈ 1.0:1）。
+
+   为什么用「覆盖」而不是逐个改组件：
+     - 涉及 40 个视图里 99 个类，逐文件改容易漏；
+     - 这些类名是组件私有的（scoped），覆盖规则也只影响暗色，风险可控；
+     - 亮的文字色一行都没动，亮色主题零回归。
+
+   改完必须重跑：node tests/ui/audit-contrast.mjs
+   ===================================================================== */
+
+html.dark {
+  /* 亮色底（chip / tip / tag 一类）统一压成半透明白，文字提亮 */
+  --tp-chip-bg: rgba(255, 255, 255, 0.09);
+  --tp-chip-border: rgba(255, 255, 255, 0.14);
+}
+
+/* ---------------------------------------------------------------- A. 亮底元素 */
+/* 原对比度 1.03:1（rgb(230, 237, 243) on rgb(253, 236, 235)） */
+html.dark .chip-name {
+  background: var(--tp-chip-bg) !important;
+  border-color: var(--tp-chip-border) !important;
+  color: var(--tp-text) !important;
+}
+/* 原对比度 1.14:1（rgb(230, 237, 243) on rgb(255, 250, 240)） */
+html.dark .tip-title {
+  background: var(--tp-chip-bg) !important;
+  border-color: var(--tp-chip-border) !important;
+  color: var(--tp-text) !important;
+}
+/* 原对比度 2.04:1（rgb(230, 162, 60) on rgb(253, 246, 236)） */
+html.dark .status-pending {
+  background: var(--tp-chip-bg) !important;
+  border-color: var(--tp-chip-border) !important;
+  color: var(--tp-text) !important;
+}
+/* 原对比度 2.11:1（rgb(103, 194, 58) on rgb(240, 249, 255)） */
+html.dark .status-completed {
+  background: var(--tp-chip-bg) !important;
+  border-color: var(--tp-chip-border) !important;
+  color: var(--tp-text) !important;
+}
+/* 原对比度 2.33:1（rgb(154, 168, 184) on rgb(255, 250, 240)） */
+html.dark .tip-desc {
+  background: var(--tp-chip-bg) !important;
+  border-color: var(--tp-chip-border) !important;
+  color: var(--tp-text) !important;
+}
+/* 原对比度 2.53:1（rgb(64, 158, 255) on rgb(236, 245, 255)） */
+html.dark .status-progress {
+  background: var(--tp-chip-bg) !important;
+  border-color: var(--tp-chip-border) !important;
+  color: var(--tp-text) !important;
+}
+/* 原对比度 3.08:1（rgb(77, 139, 240) on rgb(239, 246, 255)） */
+html.dark .cell-date {
+  background: var(--tp-chip-bg) !important;
+  border-color: var(--tp-chip-border) !important;
+  color: var(--tp-text) !important;
+}
+/* 原对比度 4.24:1（rgb(37, 99, 235) on rgb(219, 234, 254)） */
+html.dark .member-badge {
+  background: var(--tp-chip-bg) !important;
+  border-color: var(--tp-chip-border) !important;
+  color: var(--tp-text) !important;
+}
+
+/* ---------------------------------------------------------------- B. 暗底暗字 */
+/* 原对比度 1.03:1（rgb(15, 23, 42) on rgb(22, 27, 34)） */
+html.dark .metric-value {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 1.03:1（rgb(15, 23, 42) on rgb(22, 27, 34)） */
+html.dark .small {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 1.03:1（rgb(31, 41, 55) on rgb(31, 39, 49)） */
+html.dark .page-title {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 1.03:1（rgb(15, 23, 42) on rgb(22, 27, 34)） */
+html.dark .kpi-num {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 1.03:1（rgb(15, 23, 42) on rgb(22, 27, 34)） */
+html.dark .value {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 1.06:1（rgb(15, 23, 42) on rgb(13, 17, 23)） */
+html.dark .cal-title {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 1.06:1（rgb(15, 23, 42) on rgb(13, 17, 23)） */
+html.dark .page-title {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 1.08:1（rgb(30, 41, 59) on rgb(28, 35, 44)） */
+html.dark .panel-title {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 1.08:1（rgb(30, 41, 59) on rgb(28, 35, 44)） */
+html.dark .title {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 1.08:1（rgb(31, 41, 55) on rgb(28, 35, 44)） */
+html.dark .card-title {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 1.08:1（rgb(30, 41, 59) on rgb(28, 35, 44)） */
+html.dark .panel-title {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 1.16:1（rgb(48, 49, 51) on rgb(31, 39, 49)） */
+html.dark .stat-value {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 1.18:1（rgb(15, 23, 42) on rgb(31, 39, 49)） */
+html.dark .status-num {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 1.18:1（rgb(31, 41, 55) on rgb(22, 27, 34)） */
+html.dark .team-name {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 1.22:1（rgb(48, 49, 51) on rgb(28, 35, 44)） */
+html.dark .header-title {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 1.24:1（rgb(31, 45, 61) on rgb(22, 27, 34)） */
+html.dark .tile-title {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 1.24:1（rgb(31, 45, 61) on rgb(22, 27, 34)） */
+html.dark .schedule-title {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 1.29:1（rgb(31, 41, 55) on rgb(13, 17, 23)） */
+html.dark .section-title {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 1.33:1（rgb(48, 49, 51) on rgb(22, 27, 34)） */
+html.dark .worklog-title {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 1.37:1（rgb(48, 49, 51) on rgb(18, 24, 31)） */
+html.dark .active {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 1.42:1（rgb(31, 41, 55) on rgb(61, 65, 69)） */
+html.dark .stat-number {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 1.68:1（rgb(55, 65, 81) on rgb(22, 27, 34)） */
+html.dark .cell {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 2.17:1（rgb(100, 116, 139) on rgb(61, 65, 69)） */
+html.dark .stat-label {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 2.28:1（rgb(71, 85, 105) on rgb(22, 27, 34)） */
+html.dark .device-cell {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 2.47:1（rgb(96, 98, 102) on rgb(31, 39, 49)） */
+html.dark .task-title {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 2.83:1（rgb(96, 98, 102) on rgb(22, 27, 34)） */
+html.dark .tile-desc {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 2.83:1（rgb(96, 98, 102) on rgb(22, 27, 34)） */
+html.dark .dot {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 2.83:1（rgb(96, 98, 102) on rgb(22, 27, 34)） */
+html.dark .due {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 2.83:1（rgb(96, 98, 102) on rgb(22, 27, 34)） */
+html.dark .meta-item {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 2.83:1（rgb(96, 98, 102) on rgb(22, 27, 34)） */
+html.dark .content-preview {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 2.83:1（rgb(96, 98, 102) on rgb(22, 27, 34)） */
+html.dark .team-desc {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 3.12:1（rgb(107, 114, 128) on rgb(31, 39, 49)） */
+html.dark .page-subtitle {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 3.17:1（rgb(100, 116, 139) on rgb(31, 39, 49)） */
+html.dark .chip-status {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 3.17:1（rgb(100, 116, 139) on rgb(31, 39, 49)） */
+html.dark .status-label {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 3.33:1（rgb(100, 116, 139) on rgb(28, 35, 44)） */
+html.dark .legend-item {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 3.33:1（rgb(100, 116, 139) on rgb(28, 35, 44)） */
+html.dark .subtitle {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 3.4:1（rgb(110, 125, 141) on rgb(34, 43, 54)） */
+html.dark .muted {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 3.4:1（rgb(110, 125, 141) on rgb(34, 43, 54)） */
+html.dark .muted {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 3.41:1（rgb(110, 125, 141) on rgb(27, 42, 68)） */
+html.dark .cell-dot-more {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 3.58:1（rgb(220, 38, 38) on rgb(22, 27, 34)） */
+html.dark .as-num {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 3.58:1（rgb(107, 114, 128) on rgb(22, 27, 34)） */
+html.dark .bar-label {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 3.63:1（rgb(100, 116, 139) on rgb(22, 27, 34)） */
+html.dark .metric-label {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 3.63:1（rgb(100, 116, 139) on rgb(22, 27, 34)） */
+html.dark .unit {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 3.63:1（rgb(100, 116, 139) on rgb(22, 27, 34)） */
+html.dark .kpi-title {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 3.63:1（rgb(100, 116, 139) on rgb(22, 27, 34)） */
+html.dark .bar-value {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 3.63:1（rgb(100, 116, 139) on rgb(22, 27, 34)） */
+html.dark .label {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 3.76:1（rgb(110, 125, 141) on rgb(28, 35, 44)） */
+html.dark .legend-tip {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 3.98:1（rgb(100, 116, 139) on rgb(13, 17, 23)） */
+html.dark .view-hint {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 4.1:1（rgb(110, 125, 141) on rgb(22, 27, 34)） */
+html.dark .kpi-unit {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 4.1:1（rgb(110, 125, 141) on rgb(22, 27, 34)） */
+html.dark .kpi-foot {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 4.1:1（rgb(110, 125, 141) on rgb(22, 27, 34)） */
+html.dark .is-top {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 4.1:1（rgb(110, 125, 141) on rgb(22, 27, 34)） */
+html.dark .quick-desc {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 4.1:1（rgb(110, 125, 141) on rgb(22, 27, 34)） */
+html.dark .cell-count {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 4.1:1（rgb(110, 125, 141) on rgb(22, 27, 34)） */
+html.dark .logic-hint {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 4.24:1（rgb(110, 125, 141) on rgb(18, 24, 31)） */
+html.dark .el-menu-item-group__title {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 4.24:1（rgb(110, 125, 141) on rgb(18, 24, 31)） */
+html.dark .el-breadcrumb__separator {
+  color: var(--tp-text) !important;
+}
+/* 原对比度 4.49:1（rgb(110, 125, 141) on rgb(13, 17, 23)） */
+html.dark .date {
+  color: var(--tp-text) !important;
+}
+
+/* ---------------------------------------------------------------- C. 共用标题与数值 */
+/* 这些类在多个页面复用，统一提到主文字色，避免逐页漏掉 */
+html.dark .page-title,
+html.dark .card-title,
+html.dark .panel-title,
+html.dark .cal-title,
+html.dark .metric-value,
+html.dark .kpi-num,
+html.dark .stat-value,
+html.dark .stat-number,
+html.dark .status-num,
+html.dark .tile-title,
+html.dark .team-name,
+html.dark .schedule-title,
+html.dark .worklog-title,
+html.dark .section-title,
+html.dark .header-title,
+html.dark .tip-title {
+  color: var(--tp-text) !important;
+}
+
+/* 次要说明文字：比主文字暗一档，但仍要 ≥ 4.5:1 */
+html.dark .tip-desc,
+html.dark .cell-date,
+html.dark .crumb-text,
+html.dark .hint,
+html.dark .sub-text {
+  color: var(--tp-text-muted) !important;
+}
+
+
+/* ---------------------------------------------------------------- D. 浅底小标签 */
+/*
+  chip / badge / tip 这类元素在亮色下是「浅底 + 深字」，进暗色后如果只改文字色，
+  就变成「浅底 + 亮字」——比不改更糟（1.0:1）。所以这里统一把底色压成半透明白。
+  左边那道 3px 的状态色条（border-left-color）保留，状态仍然一眼可辨。
+*/
+html.dark .cal-chip,
+html.dark .badge,
+html.dark .badge.ok,
+html.dark .badge.warn,
+html.dark .badge.danger,
+html.dark .tip,
+html.dark .tip-title,
+html.dark .tip-desc,
+html.dark .chip,
+html.dark .chip-name,
+html.dark .chip-status,
+html.dark .legend-item,
+html.dark .cal-summary {
+  background: var(--tp-chip-bg) !important;
+  border-color: var(--tp-chip-border) !important;
+  color: var(--tp-text) !important;
+}
+
+/* 圆点/色条类保持原色（它们是状态指示，不该被洗白） */
+html.dark .cell-dot,
+html.dark .legend-dot,
+html.dark .legend-rainbow,
+html.dark .net-dot {
+  background-color: initial;
+}
+
+/* 行内代码 */
+html.dark code {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #9ecbff !important;
+}
+
+/* 说明列表里的加粗与正文 */
+html.dark .explain-list,
+html.dark .explain-list li,
+html.dark .explain-list b {
+  color: var(--tp-text-muted) !important;
+}
+
+html.dark .explain-list code {
+  color: #9ecbff !important;
+}
+
+/* ---------------------------------------------------------------- E. 日历格子内联底色 */
+/*
+  三个自绘日历会给格子按状态/工时上内联色（:style），CSS 变量压不住内联值。
+  暗色下必须 !important，否则浅色 tint 会把文字吞掉（实测 2.24:1）。
+  .cal-item（日程卡片）不在此列——它按「一个日程一种颜色」上色，压掉会丢信息。
+*/
+html.dark .cal-cell,
+html.dark .cal-cell.is-weekend,
+html.dark .cal-cell.is-other-month {
+  background-color: var(--tp-bg-card) !important;
+}
+
+html.dark .cal-cell.is-today {
+  background-color: var(--tp-bg-subtle) !important;
+}
+
+/* 出勤日历的状态色块保留颜色，只保证反差 */
+html.dark .cal-cell .cell-date {
+  color: var(--tp-text-muted) !important;
+}
+
+/* 页面头部带底色时（用户管理/团队管理）文字仍然是亮的 */
+html.dark .page-header,
+html.dark .admin-page {
+  background-color: transparent !important;
+}
+
+/* ---------------------------------------------------------------- F. 出勤日历的状态 chip */
+/*
+  .cal-chip 在白底上给状态色条 + 浅底，暗色下底色变成纯白（实测 1.18:1）。
+  这里把 chip 本身压成半透明白，内部两段文字透明背景继承即可。
+  左侧 3px 状态色条（border-left-color）不动，状态辨识不受影响。
+*/
+html.dark .cal-chip {
+  background: var(--tp-chip-bg) !important;
+  color: var(--tp-text) !important;
+}
+
+html.dark .cal-chip .chip-name,
+html.dark .cal-chip .chip-status {
+  background: transparent !important;
+  color: var(--tp-text) !important;
+}
+
+/* 浅底彩色标签：文字用深一档的同色系，保证 4.5:1 */
+html.dark .el-tag--primary .el-tag__content,
+html.dark .el-tag.el-tag--info .el-tag__content {
+  color: var(--tp-text) !important;
+}
+
+/* 暗底上的链接与图标用亮一档的蓝（#2f6fd0 在深底上只有 3.6:1） */
+html.dark .el-link.el-link--primary,
+html.dark .el-link.el-link--default:hover {
+  color: #6ea8f5 !important;
+}
+
+/* ---------------------------------------------------------------- H. 收尾 */
+/* 白底标签：暗色下换成半透明底，否则亮字压白底（实测 1.86:1） */
+html.dark .el-tag:not(.el-tag--dark) {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+}
+
+/* 文字按钮内的 span 有时会自带 color，强制继承按钮的浅色 */
+html.dark .el-button.is-link span,
+html.dark .el-button.is-text span {
+  color: inherit !important;
+}
+
+/* 复选框/单选框标签（考勤规则选工作日） */
+html.dark .el-checkbox__label,
+html.dark .el-checkbox-button__inner,
+html.dark .el-radio__label {
+  color: var(--tp-text) !important;
+}
+
+html.dark .el-checkbox.is-checked .el-checkbox__label {
+  color: var(--tp-text-primary-color) !important;
+}
+
+/* 菜单选中项：--tp-primary(#4d8bf0) 压在 primary-soft 上只有 4.29:1，提亮一档 */
+html.dark .el-menu-item.is-active {
+  color: var(--tp-text-primary-color) !important;
+}
+
+html.dark .el-menu-item.is-active .el-icon {
+  color: var(--tp-text-primary-color) !important;
+}
+
+/* ---------------------------------------------------------------- I. plain 按钮 */
+/*
+  el-button plain：文字用语义色、底透明。暗色下语义色偏深（#2f6fd0 on #161b22 = 3.2:1），
+  所以文字换浅同色系，边框跟着调淡。
+*/
+html.dark .el-button--primary.is-plain {
+  color: var(--tp-text-primary-color) !important;
+  border-color: rgba(138, 180, 248, 0.45) !important;
+  background: rgba(138, 180, 248, 0.08) !important;
+}
+
+html.dark .el-button--success.is-plain {
+  color: var(--tp-text-success-color) !important;
+  border-color: rgba(126, 208, 138, 0.45) !important;
+  background: rgba(126, 208, 138, 0.08) !important;
+}
+
+html.dark .el-button--danger.is-plain {
+  color: var(--tp-text-danger-color) !important;
+  border-color: rgba(240, 138, 128, 0.45) !important;
+  background: rgba(240, 138, 128, 0.08) !important;
+}
+
+html.dark .el-button--warning.is-plain {
+  color: var(--tp-text-warning-color) !important;
+  border-color: rgba(226, 180, 92, 0.45) !important;
+  background: rgba(226, 180, 92, 0.08) !important;
+}
+
+/* 日历「还有 N 条」这类小按钮 */
+html.dark .cell-more,
+html.dark .cell-add {
+  color: var(--tp-text-primary-color) !important;
+}
+
+/* ---------------------------------------------------------------- J. 小字号加字重 */
+/*
+  出勤/日程日历里 11.5px 的小字即使达到 4.5:1，视觉上仍显"灰"。
+  暗色下统一 +100 字重，抵消亮底转暗底后的观感损失。
+*/
+html.dark .cal-chip,
+html.dark .cal-chip .chip-name,
+html.dark .cal-chip .chip-status,
+html.dark .cell-more,
+html.dark .cell-date,
+html.dark .cal-weekday,
+html.dark .legend-item,
+html.dark .cal-summary {
+  font-weight: 500;
+}

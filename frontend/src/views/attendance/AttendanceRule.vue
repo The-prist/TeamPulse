@@ -202,11 +202,11 @@ onMounted(load)
   padding-left: 18px;
   font-size: 12.5px;
   line-height: 1.9;
-  color: #475569;
+  color: var(--tp-text-muted);
 }
 .explain-list code {
   background: var(--tp-primary-soft);
-  color: #1d4ed8;
+  color: var(--tp-primary);
   padding: 1px 5px;
   border-radius: 4px;
 }

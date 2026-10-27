@@ -417,7 +417,7 @@ onMounted(load)
   padding: 6px;
   border-right: 1px solid var(--tp-border);
   border-bottom: 1px solid var(--tp-border);
-  background: #fcfdff;
+  background: var(--tp-bg-card);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -426,10 +426,10 @@ onMounted(load)
   background: var(--tp-bg-card);
 }
 .cal-cell.is-weekend {
-  background: #f8fbff;
+  background: var(--tp-bg-subtle);
 }
 .cal-cell.is-other-month {
-  background: #f2f6fb;
+  background: var(--tp-bg-subtle);
   opacity: 0.6;
 }
 .cal-cell.is-today {
