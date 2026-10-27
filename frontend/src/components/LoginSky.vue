@@ -139,28 +139,54 @@ function pickCloudSpot(region) {
 }
 
 function buildClouds() {
-  const n = Math.max(5, Math.min(7, Math.round(width / 240)))
-  const plan = ['top', 'top', 'left', 'right', 'top', 'right', 'left'].slice(0, n)
-
   const list = []
-  const usedIdx = new Set()
+
+  // ① 底层云带（cloud-7）：横跨整个屏幕，左右被屏幕边缘自然切掉，永远在最下层
+  const bandImg = cloudImages[6]
+  const bandRatio = bandImg?.naturalHeight ? bandImg.naturalHeight / bandImg.naturalWidth : 0.157
+  const bandW = width * 1.34
+  list.push({
+    src: CLOUD_SRC[6],
+    imgIndex: 6,
+    isBand: true,
+    x: width / 2,
+    y: height * 0.93,
+    hx: width / 2,
+    hy: height * 0.93,
+    w: bandW,
+    h: bandW * bandRatio,
+    alpha: 0.95,
+    vx: 0,
+    vy: 0,
+    rx: 0,
+    ry: 0,
+  })
+
+  // ② 其余 6 朵：分布在上方与左右留白，尺寸放大
+  const plan = ['top', 'top', 'left', 'right', 'top', 'left']
+  const usedIdx = new Set([6])
   for (const region of plan) {
-    let imgIndex = Math.floor(Math.random() * CLOUD_SRC.length)
-    for (let k = 0; k < CLOUD_SRC.length && usedIdx.has(imgIndex); k++) {
-      imgIndex = (imgIndex + 1) % CLOUD_SRC.length
+    let imgIndex = Math.floor(Math.random() * 6)
+    for (let k = 0; k < 6 && usedIdx.has(imgIndex); k++) {
+      imgIndex = (imgIndex + 1) % 6
     }
     usedIdx.add(imgIndex)
 
     const img = cloudImages[imgIndex]
-    const ratio = img?.naturalHeight ? img.naturalHeight / img.naturalWidth : 0.5
-    const targetW = region === 'top' ? rand(200, 300) : rand(200, 270)
+    const ratio = img?.naturalHeight ? img.naturalHeight / img.naturalWidth : 0.38
+    const targetW = region === 'top' ? rand(300, 430) : rand(250, 340)
 
     let spot = null
-    for (let tries = 0; tries < 8; tries++) {
+    for (let tries = 0; tries < 30; tries++) {
       const candidate = pickCloudSpot(region)
       spot = candidate
-      if (!list.some((c) => Math.hypot(c.hx - candidate.x, c.hy - candidate.y) < 240)) break
+      if (!list.some((c) => !c.isBand && Math.hypot(c.hx - candidate.x, c.hy - candidate.y) < 340)) {
+        spot = candidate
+        break
+      }
+      spot = null
     }
+    if (!spot) continue // 放不下就少放一朵，避免两朵叠在一起
 
     list.push({
       src: CLOUD_SRC[imgIndex],
@@ -171,11 +197,11 @@ function buildClouds() {
       hy: spot.y,
       w: targetW,
       h: targetW * ratio,
-      alpha: rand(0.88, 0.98),
-      vx: rand(-0.014, 0.014),
-      vy: rand(-0.005, 0.005),
-      rx: rand(60, 140),
-      ry: rand(18, 48),
+      alpha: rand(0.9, 1),
+      vx: rand(-0.012, 0.012),
+      vy: rand(-0.004, 0.004),
+      rx: rand(50, 110),
+      ry: rand(16, 40),
     })
   }
 
@@ -186,6 +212,7 @@ function buildClouds() {
 function stepClouds(dt) {
   const k = Math.min(dt, 32) / 16.67
   for (const c of cloudList.value) {
+    if (c.isBand) continue // 全宽云带固定不动，否则两侧会露出缝隙
     c.vx += rand(-0.0006, 0.0006) * k
     c.vy += rand(-0.0004, 0.0004) * k
     // 很轻的回家力：云慢慢漂回原位附近
