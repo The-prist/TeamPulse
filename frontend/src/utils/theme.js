@@ -58,3 +58,30 @@ export function initTheme() {
 export function bgOf(theme) {
   return theme === THEMES.DARK ? '#0d1117' : '#e1eaf6'
 }
+
+/* ------------------------------------------------------------------ 切换接管 */
+/*
+  某些页面有自己的一套切换动画（登录页：星星颤抖坠落 + 右侧日出）。
+  这些页面挂载时注册一个 handler，ThemeToggle 检测到就交给它，
+  不再播放全屏覆盖 + 圆形揭开。
+  handler 负责在合适的时机调用 setTheme(主题)，并返回 Promise 表示动画结束。
+*/
+let transitionHandler = null
+
+export function registerThemeTransition(fn) {
+  transitionHandler = fn
+  return () => {
+    if (transitionHandler === fn) transitionHandler = null
+  }
+}
+
+export function hasThemeTransition() {
+  return typeof transitionHandler === 'function'
+}
+
+/** 交给页面自己的动画；没有注册则返回 false，由调用方走默认动画 */
+export async function runThemeTransition(nextTheme) {
+  if (!hasThemeTransition()) return false
+  await transitionHandler(nextTheme)
+  return true
+}

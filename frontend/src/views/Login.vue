@@ -5,7 +5,10 @@
 -->
 <template>
   <div class="login-page">
-    <!-- 背景粒子：每颗白点只在自己附近的小矩形内漂浮，鼠标靠近会被吸引但不越界 -->
+    <!-- 白天天空：渐变层用 opacity 交叉淡入，切换时不会出现渐变补间的脏边 -->
+    <div class="day-sky" aria-hidden="true"></div>
+
+    <!-- 背景场景：夜间星星 / 白天云朵；切换动画（星星坠落 + 右侧日出）也在这里 -->
     <LoginDots />
 
     <div class="login-panel">
@@ -150,14 +153,31 @@ async function handleLogin() {
   align-items: center;
   justify-content: center;
   padding: 32px 20px;
-  /* 纯色深蓝底：粒子层负责制造层次，不再用渐变 */
+  /* 夜间：纯色深蓝；白天由 .day-sky 渐变层盖上来（opacity 过渡） */
   background: #0b1c38;
+  transition: background-color 900ms ease;
   overflow: hidden;
+}
+
+.day-sky {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 1;
+  background: linear-gradient(180deg, #4aa3ea 0%, #7fc3f0 38%, #b9ddf7 72%, #d9edfb 100%);
+  transition: opacity 900ms ease;
+}
+
+/* 暗色（夜间）：白天渐变层淡出，露出纯色深蓝底 */
+:global(html.dark .day-sky) {
+  opacity: 0;
 }
 
 .login-panel {
   position: relative;
   z-index: 1;
+  /* 暗色下多出 1px 边框：用 border-box 保证昼夜两种状态的几何完全一致 */
+  box-sizing: border-box;
   display: grid;
   grid-template-columns: 1.05fr 1fr;
   width: 100%;
@@ -302,6 +322,66 @@ async function handleLogin() {
   background: #e2e8f0;
   color: #1d4ed8;
   font-size: 11.5px;
+}
+
+/* ---------- 暗色（夜间）登录卡片 ---------- */
+/*
+  只把输入框变黑会让整张卡看起来"破了"：白底 + 黑色输入框。
+  这里把卡片、表单区、文字、提示条一起换成暗色系，保留品牌区的蓝调但压暗。
+*/
+:global(html.dark .login-panel) {
+  background: #121a26;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 28px 70px -20px rgba(2, 6, 23, 0.9);
+}
+
+:global(html.dark .brand) {
+  background: linear-gradient(150deg, #0e2a52 0%, #114a7c 55%, #0c5f80 100%);
+}
+
+:global(html.dark .brand::after) {
+  background: radial-gradient(circle at 78% 18%, rgba(255, 255, 255, 0.14), transparent 60%);
+}
+
+:global(html.dark .form-side) {
+  background: #121a26;
+}
+
+:global(html.dark .form-title) {
+  color: #e9f0f7;
+}
+
+:global(html.dark .form-subtitle) {
+  color: #93a4b8;
+}
+
+:global(html.dark .hint-box) {
+  background: rgba(255, 255, 255, 0.055);
+  color: #b7c4d3;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+:global(html.dark .hint-box code) {
+  background: rgba(255, 255, 255, 0.1);
+  color: #8ab4f8;
+}
+
+/* 表单标签与输入框：跟随暗色变量，但补上卡片内的边界 */
+:global(html.dark .form-card .el-form-item__label) {
+  color: #c3cfdc;
+}
+
+:global(html.dark .form-card .el-input__wrapper) {
+  background-color: #0d1520;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12) inset;
+}
+
+:global(html.dark .form-card .el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px var(--tp-text-primary-color, #8ab4f8) inset;
+}
+
+:global(html.dark .form-card .el-input__inner) {
+  color: #e6eef7;
 }
 
 /* 窄屏只保留表单 */
