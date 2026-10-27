@@ -145,6 +145,8 @@ async function handleLogin() {
 <style scoped>
 .login-page {
   position: relative;
+  /* 100vh + 上下 padding 会撑出竖向滚动条，用 border-box 把 padding 算进高度 */
+  box-sizing: border-box;
   min-height: 100vh;
   display: flex;
   align-items: center;

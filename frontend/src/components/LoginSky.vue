@@ -101,6 +101,10 @@ const moonLabel = ref('')
 let moonOverride = null
 
 const mouse = { x: -9999, y: -9999, active: false }
+/** 风速：px/帧（60fps 基准），正数向右 */
+const WIND = 0.16
+/** 长云带的滚动偏移（0 ~ bandW 循环） */
+let bandOffset = 0
 const rand = (a, b) => a + Math.random() * (b - a)
 const clamp01 = (v) => Math.max(0, Math.min(1, v))
 const reduced = () => window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
@@ -133,64 +137,65 @@ function makeStar() {
  */
 /** 云落点：只在可见区域（顶部带 / 左右留白），避免被中间卡片挡住 */
 function pickCloudSpot(region) {
-  if (region === 'left') return { x: rand(width * 0.06, width * 0.12), y: rand(height * 0.28, height * 0.68) }
-  if (region === 'right') return { x: rand(width * 0.88, width * 0.94), y: rand(height * 0.28, height * 0.68) }
-  return { x: rand(width * 0.12, width * 0.88), y: rand(height * 0.1, height * 0.21) }
+  if (region === 'left') return { x: rand(width * 0.06, width * 0.12), y: rand(height * 0.3, height * 0.62) }
+  if (region === 'right') return { x: rand(width * 0.88, width * 0.94), y: rand(height * 0.3, height * 0.62) }
+  return { x: rand(width * 0.12, width * 0.88), y: rand(height * 0.17, height * 0.27) }
 }
 
 function buildClouds() {
   const list = []
 
-  // ① 底层云带（cloud-7）：横跨整个屏幕，左右被屏幕边缘自然切掉，永远在最下层
+  // ① 底层长云带：两张同样大小拼接，向右移动时无缝循环
   const bandImg = cloudImages[6]
   const bandRatio = bandImg?.naturalHeight ? bandImg.naturalHeight / bandImg.naturalWidth : 0.157
-  const bandW = width * 1.34
-  list.push({
-    src: CLOUD_SRC[6],
-    imgIndex: 6,
-    isBand: true,
-    x: width / 2,
-    y: height * 0.93,
-    hx: width / 2,
-    hy: height * 0.93,
-    w: bandW,
-    h: bandW * bandRatio,
-    alpha: 0.95,
-    vx: 0,
-    vy: 0,
-    rx: 0,
-    ry: 0,
-  })
+  const bandW = width * 1.25
+  bandOffset = 0
+  for (let i = 0; i < 2; i++) {
+    list.push({
+      src: CLOUD_SRC[6],
+      imgIndex: 6,
+      isBand: true,
+      bandIndex: i,
+      x: width / 2 - i * bandW,
+      y: height * 0.95,
+      hx: width / 2,
+      hy: height * 0.95,
+      w: bandW,
+      h: bandW * bandRatio,
+      alpha: 0.95,
+      vx: 0,
+      vy: 0,
+      rx: 0,
+      ry: 0,
+    })
+  }
 
-  // ② 其余 6 朵：分布在上方与左右留白，尺寸放大
-  const plan = ['top', 'top', 'left', 'right', 'top', 'left']
+  // ② 单体云：放大，分布在上方与左右留白
+  const plan = ['top', 'left', 'right', 'top', 'left']
   const usedIdx = new Set([6])
   for (const region of plan) {
     let imgIndex = Math.floor(Math.random() * 6)
-    for (let k = 0; k < 6 && usedIdx.has(imgIndex); k++) {
-      imgIndex = (imgIndex + 1) % 6
-    }
+    for (let k = 0; k < 6 && usedIdx.has(imgIndex); k++) imgIndex = (imgIndex + 1) % 6
     usedIdx.add(imgIndex)
 
     const img = cloudImages[imgIndex]
     const ratio = img?.naturalHeight ? img.naturalHeight / img.naturalWidth : 0.38
-    const targetW = region === 'top' ? rand(300, 430) : rand(250, 340)
+    const targetW = region === 'top' ? rand(320, 440) : rand(270, 360)
 
     let spot = null
     for (let tries = 0; tries < 30; tries++) {
       const candidate = pickCloudSpot(region)
-      spot = candidate
-      if (!list.some((c) => !c.isBand && Math.hypot(c.hx - candidate.x, c.hy - candidate.y) < 340)) {
+      if (!list.some((c) => !c.isBand && Math.hypot(c.hx - candidate.x, c.hy - candidate.y) < 380)) {
         spot = candidate
         break
       }
-      spot = null
     }
-    if (!spot) continue // 放不下就少放一朵，避免两朵叠在一起
+    if (!spot) continue
 
     list.push({
       src: CLOUD_SRC[imgIndex],
       imgIndex,
+      region,
       x: spot.x,
       y: spot.y,
       hx: spot.x,
@@ -198,10 +203,10 @@ function buildClouds() {
       w: targetW,
       h: targetW * ratio,
       alpha: rand(0.9, 1),
-      vx: rand(-0.012, 0.012),
-      vy: rand(-0.004, 0.004),
-      rx: rand(50, 110),
-      ry: rand(16, 40),
+      vx: 0,
+      vy: 0,
+      rx: 0,
+      ry: 0,
     })
   }
 
@@ -209,26 +214,49 @@ function buildClouds() {
   cloudEls.length = 0
 }
 
+/** 给一朵云换新形象，并从左侧重新进场 */
+function respawnCloud(c) {
+  const imgIndex = Math.floor(Math.random() * 6)
+  const img = cloudImages[imgIndex]
+  const ratio = img?.naturalHeight ? img.naturalHeight / img.naturalWidth : 0.38
+  const targetW = c.region === 'top' ? rand(320, 440) : rand(270, 360)
+  const spot = pickCloudSpot(c.region)
+
+  c.src = CLOUD_SRC[imgIndex]
+  c.imgIndex = imgIndex
+  c.w = targetW
+  c.h = targetW * ratio
+  c.alpha = rand(0.9, 1)
+  c.x = -c.w / 2 - rand(40, 320)
+  c.y = spot.y
+  c.hx = spot.x
+  c.hy = spot.y
+}
+
 function stepClouds(dt) {
   const k = Math.min(dt, 32) / 16.67
-  for (const c of cloudList.value) {
-    if (c.isBand) continue // 全宽云带固定不动，否则两侧会露出缝隙
-    c.vx += rand(-0.0006, 0.0006) * k
-    c.vy += rand(-0.0004, 0.0004) * k
-    // 很轻的回家力：云慢慢漂回原位附近
-    c.vx += (c.hx - c.x) * 0.00012 * k
-    c.vy += (c.hy - c.y) * 0.00012 * k
-    c.vx *= 0.995
-    c.vy *= 0.995
-    c.x += c.vx * k
-    c.y += c.vy * k
-    c.x = Math.max(Math.max(0, c.hx - c.rx), Math.min(Math.min(width, c.hx + c.rx), c.x))
-    c.y = Math.max(Math.max(0, c.hy - c.ry), Math.min(Math.min(height, c.hy + c.ry), c.y))
+  const list = cloudList.value
+
+  // 长云带：整体偏移循环（两张图交替拼接 → 视觉无缝）
+  const bands = list.filter((c) => c.isBand)
+  if (bands.length === 2) {
+    const bw = bands[0].w
+    bandOffset = (bandOffset + WIND * k) % bw
+    bands[0].x = width / 2 + bandOffset
+    bands[1].x = bands[0].x - bw
   }
-  // 位置每帧直接写 DOM，避免 Vue 在 60fps 下反复 diff
+
+  // 单体云：向右缓慢飘，完全移出右侧后从左侧换形状重新进场
+  for (const c of list) {
+    if (c.isBand) continue
+    c.x += WIND * k
+    if (c.x - c.w / 2 > width + 20) respawnCloud(c)
+  }
+
+  // 每帧直接写 DOM
   for (let i = 0; i < cloudEls.length; i++) {
     const el = cloudEls[i]
-    const c = cloudList.value[i]
+    const c = list[i]
     if (!el || !c) continue
     el.style.transform = `translate3d(${(c.x - c.w / 2).toFixed(1)}px, ${(c.y - c.h / 2).toFixed(1)}px, 0)`
     el.style.opacity = String(c.alpha * cloudsVisible.value)
