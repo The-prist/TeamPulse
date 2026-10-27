@@ -117,41 +117,56 @@ function makeStar() {
  *   - 中排更大，顶排 2~3 个"鼓包"，做出顶部起伏
  *   - 每朵云尺度不同（22~150），小的做远景点缀
  */
-function makeCloud() {
-  // 云的尺度分三档，避免所有云一样大
-  const tier = Math.random()
-  const base = tier < 0.34 ? rand(22, 40) : tier < 0.74 ? rand(44, 78) : rand(84, 138)
-  const hx = rand(0, width)
-  // 主要分布在上半部与两侧，避开被中间卡片挡住的位置
-  const hy = rand(height * 0.05, height * 0.46)
+/** 在一处可见区域内取一个落点（顶部带 / 左留白 / 右留白） */
+function pickCloudSpot(region) {
+  if (region === 'left') {
+    return { x: rand(width * 0.04, width * 0.14), y: rand(height * 0.26, height * 0.76) }
+  }
+  if (region === 'right') {
+    return { x: rand(width * 0.86, width * 0.96), y: rand(height * 0.26, height * 0.76) }
+  }
+  return { x: rand(width * 0.1, width * 0.9), y: rand(height * 0.07, height * 0.2) }
+}
 
-  const n = tier < 0.34 ? 4 : tier < 0.74 ? 5 : 7
+function makeCloud(region = 'top', spot = null) {
+  const tier = Math.random()
+  const base = tier < 0.34 ? rand(22, 34) : tier < 0.74 ? rand(42, 70) : rand(78, 124)
+  const pos = spot ?? pickCloudSpot(region)
+  const hx = pos.x
+  const hy = pos.y
+
+  const cols = tier < 0.34 ? 5 : tier < 0.74 ? 8 : 12
   const puffs = []
-  for (let i = 0; i < n; i++) {
-    const t = i / (n - 1) - 0.5 // -0.5 .. 0.5
-    // 中间大、两侧小：这是积云最典型的轮廓
-    const k = 0.45 + 0.55 * Math.cos(t * Math.PI * 0.92)
-    const r = base * k
+  // 底排：底边对齐
+  for (let i = 0; i < cols; i++) {
+    const t = i / (cols - 1) - 0.5
+    const k = 0.45 + 0.55 * Math.cos(t * Math.PI * 0.95)
+    const r = base * (tier < 0.34 ? 0.52 + 0.3 * k : 0.36 + 0.34 * k)
     puffs.push({
-      dx: t * base * 2.05 + rand(-2, 2),
-      // 圆心高于基线，底边大致齐平
-      dy: -r * 0.5 + rand(-2, 2),
+      dx: t * base * 1.55 + rand(-1.5, 1.5), // 叠得密一些，减少"葡萄串"感
+      dy: -r,
       r,
-      // 每团云自己的透明度略有差别，叠起来才有体积感
-      a: rand(0.82, 1),
+      tone: rand(0.96, 1),
     })
+  }
+  // 顶部 2~3 个鼓包（中间高）
+  const tops = tier < 0.34 ? 2 : 3
+  for (let i = 0; i < tops; i++) {
+    const t = (i - (tops - 1) / 2) * 0.42
+    const r = base * rand(0.34, 0.5)
+    puffs.push({ dx: t * base * 1.5, dy: -base * 0.62 - r * 0.7, r, tone: 1 })
   }
 
   return {
     hx,
     hy,
-    rx: rand(70, 200),
-    ry: rand(24, 70),
+    rx: rand(60, 150),
+    ry: rand(20, 55),
     x: hx,
     y: hy,
-    vx: rand(-0.02, 0.02),
-    vy: rand(-0.008, 0.008),
-    alpha: rand(0.62, 0.88),
+    vx: rand(-0.015, 0.015),
+    vy: rand(-0.006, 0.006),
+    alpha: rand(0.86, 0.97),
     puffs,
   }
 }
@@ -162,8 +177,21 @@ function buildStars() {
 }
 
 function buildClouds() {
-  const n = Math.max(4, Math.min(7, Math.round(width / 340)))
-  clouds = Array.from({ length: n }, makeCloud)
+  const n = Math.max(5, Math.min(8, Math.round(width / 290)))
+  // 顶部带多放几朵，左右留白各一朵，保证卡片旁边也有云
+  const plan = ['top', 'top', 'left', 'right', 'top', 'left', 'right', 'top'].slice(0, n)
+
+  clouds = []
+  for (const region of plan) {
+    let spot = null
+    for (let tries = 0; tries < 8; tries++) {
+      const candidate = pickCloudSpot(region)
+      const tooClose = clouds.some((c) => Math.hypot(c.hx - candidate.x, c.hy - candidate.y) < 230)
+      spot = candidate
+      if (!tooClose) break
+    }
+    clouds.push(makeCloud(region, spot))
+  }
 }
 
 /* ------------------------------------------------------------------ 太阳与天色 */
@@ -570,54 +598,67 @@ function drawStars() {
  */
 function drawClouds() {
   if (cloudsVisible <= 0.01) return
-  const warm = clamp01((12 - sunAlt) / 14)
-  const warmColor = warm > 0.3 ? `rgba(255, 214, 170, ${warm * 0.35})` : null
 
   for (const c of clouds) {
     const a = c.alpha * cloudsVisible
-    if (a <= 0.01) continue
+    if (a <= 0.02) continue
 
+    let minX = Infinity
+    let maxX = -Infinity
+    let baseY = -Infinity
     for (const p of c.puffs) {
       const px = c.x + p.dx
       const py = c.y + p.dy
-      const pa = a * p.a
-      const core = p.r * 0.9
+      minX = Math.min(minX, px - p.r)
+      maxX = Math.max(maxX, px + p.r)
+      baseY = Math.max(baseY, py + p.r)
+    }
 
-      // ① 实心云泡：每个鼓包都是独立可辨的圆
-      ctx.globalAlpha = pa
-      ctx.fillStyle = '#ffffff'
-      ctx.beginPath()
-      ctx.arc(px, py, core, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.globalAlpha = 1
+    // ① 先画平底（后面叠上的泡泡会把它的上沿盖掉，只剩一条水平底边）
+    const w = maxX - minX
+    const baseH = Math.max(8, w * 0.07)
+    const bx = minX + baseH * 0.2
+    const by = baseY - baseH * 0.45
+    const bw = Math.max(4, w - baseH * 0.4)
+    const rr = baseH / 2
 
-      // ② 柔边：只在最外圈淡出，轮廓保持清晰
-      const g = ctx.createRadialGradient(px, py, core * 0.78, px, py, p.r)
-      g.addColorStop(0, `rgba(255,255,255,${pa})`)
-      g.addColorStop(1, 'rgba(255,255,255,0)')
+    ctx.beginPath()
+    ctx.moveTo(bx + rr, by)
+    ctx.lineTo(bx + bw - rr, by)
+    ctx.arc(bx + bw - rr, by + rr, rr, -Math.PI / 2, Math.PI / 2)
+    ctx.lineTo(bx + rr, by + baseH)
+    ctx.arc(bx + rr, by + rr, rr, Math.PI / 2, -Math.PI / 2)
+    ctx.closePath()
+    const gb = ctx.createLinearGradient(0, by, 0, by + baseH)
+    gb.addColorStop(0, `rgba(252,254,255,${a})`)
+    gb.addColorStop(1, `rgba(228,242,253,${a})`)
+    ctx.fillStyle = gb
+    ctx.fill()
+    ctx.lineWidth = Math.max(1, baseH * 0.13)
+    ctx.strokeStyle = `rgba(190, 219, 242, ${0.7 * a})`
+    ctx.stroke()
+
+    // ② 再按半径从大到小叠泡泡：后画的实心圆会盖住前面的描边，
+    //    只在交界处留下淡淡的弧线——这才是参考图的观感
+    const puffs = [...c.puffs].sort((p, q) => q.r - p.r)
+    for (const p of puffs) {
+      const px = c.x + p.dx
+      const py = c.y + p.dy
+      const r = p.r
+
+      const g = ctx.createLinearGradient(px, py - r, px, py + r)
+      g.addColorStop(0, `rgba(255,255,255,${a})`)
+      g.addColorStop(0.55, `rgba(250,253,255,${a * p.tone})`)
+      g.addColorStop(1, `rgba(230,243,253,${a})`)
       ctx.fillStyle = g
       ctx.beginPath()
-      ctx.arc(px, py, p.r, 0, Math.PI * 2)
+      ctx.arc(px, py, r, 0, Math.PI * 2)
       ctx.fill()
 
-      // ③ 底部一点冷色，给云体积感
-      const gs = ctx.createRadialGradient(px, py + core * 0.5, 0, px, py + core * 0.1, core)
-      gs.addColorStop(0, `rgba(190, 210, 230, ${pa * 0.35})`)
-      gs.addColorStop(1, 'rgba(190, 210, 230, 0)')
-      ctx.fillStyle = gs
-      ctx.beginPath()
-      ctx.arc(px, py + core * 0.2, core, 0, Math.PI * 2)
-      ctx.fill()
-
-      if (warmColor) {
-        const gt = ctx.createRadialGradient(px, py + core * 0.6, 0, px, py, p.r)
-        gt.addColorStop(0, warmColor)
-        gt.addColorStop(1, 'rgba(255,214,170,0)')
-        ctx.fillStyle = gt
-        ctx.beginPath()
-        ctx.arc(px, py, p.r, 0, Math.PI * 2)
-        ctx.fill()
-      }
+      // 淡蓝交界弧：细一点、浅一点
+      ctx.lineWidth = Math.max(1, r * 0.035)
+      ctx.strokeStyle = `rgba(196, 224, 245, ${0.55 * a})`
+      ctx.stroke()
     }
   }
 }
