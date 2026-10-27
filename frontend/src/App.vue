@@ -5,15 +5,21 @@
   提示条把最近一次失败留在页面上，并提供重试（重放那次请求）。
 -->
 <script setup>
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { clearNetError, netState, retryNetError } from '@/utils/netErrors'
 import ThemeToggle from '@/components/ThemeToggle.vue'
+
+const route = useRoute()
+// 登录页的天空由北京时间驱动，不再提供手动昼夜切换
+const showToggle = computed(() => route.path !== '/login')
 </script>
 
 <template>
   <router-view />
 
-  <!-- 左下角弯月：切换亮/暗主题（带覆盖→圆形揭开的动画） -->
-  <ThemeToggle />
+  <!-- 左下角弯月：切换亮/暗主题（登录页不显示，那里的天空由时间决定） -->
+  <ThemeToggle v-if="showToggle" />
 
   <transition name="net-fade">
     <div v-if="netState.message" class="net-banner" role="alert">
