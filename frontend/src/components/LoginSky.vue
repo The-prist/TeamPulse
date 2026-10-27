@@ -98,27 +98,40 @@ function makeStar() {
 }
 
 function makeCloud() {
+  // 云的尺度分三档，避免所有云一样大
+  const tier = Math.random()
+  const base = tier < 0.34 ? rand(22, 40) : tier < 0.74 ? rand(44, 78) : rand(84, 138)
   const hx = rand(0, width)
-  const hy = rand(height * 0.06, height * 0.7)
-  const base = rand(56, 108)
+  // 主要分布在上半部与两侧，避开被中间卡片挡住的位置
+  const hy = rand(height * 0.05, height * 0.46)
+
+  const n = tier < 0.34 ? 4 : tier < 0.74 ? 5 : 7
   const puffs = []
-  const n = 6
   for (let i = 0; i < n; i++) {
-    const t = i / (n - 1) - 0.5
-    const r = base * (0.62 + 0.42 * Math.cos(t * Math.PI * 0.85))
-    puffs.push({ dx: t * base * 1.85 + rand(-5, 5), dy: -r * 0.55 + rand(-3, 3), r })
+    const t = i / (n - 1) - 0.5 // -0.5 .. 0.5
+    // 中间大、两侧小：这是积云最典型的轮廓
+    const k = 0.45 + 0.55 * Math.cos(t * Math.PI * 0.92)
+    const r = base * k
+    puffs.push({
+      dx: t * base * 2.05 + rand(-2, 2),
+      // 圆心高于基线，底边大致齐平
+      dy: -r * 0.5 + rand(-2, 2),
+      r,
+      // 每团云自己的透明度略有差别，叠起来才有体积感
+      a: rand(0.82, 1),
+    })
   }
+
   return {
     hx,
     hy,
-    rx: rand(120, 260),
-    ry: rand(40, 90),
+    rx: rand(70, 200),
+    ry: rand(24, 70),
     x: hx,
     y: hy,
-    vx: rand(-0.03, 0.03),
-    vy: rand(-0.015, 0.015),
-    alpha: rand(0.5, 0.85),
-    gather: 1,
+    vx: rand(-0.02, 0.02),
+    vy: rand(-0.008, 0.008),
+    alpha: rand(0.62, 0.88),
     puffs,
   }
 }
@@ -129,7 +142,7 @@ function buildStars() {
 }
 
 function buildClouds() {
-  const n = Math.max(4, Math.min(8, Math.round(width / 300)))
+  const n = Math.max(4, Math.min(7, Math.round(width / 340)))
   clouds = Array.from({ length: n }, makeCloud)
 }
 
@@ -165,8 +178,10 @@ function refreshSky() {
 
   // 屏幕坐标：方位角 → 横向（东右西左），高度角 → 纵向
   sunX = azimuthToX(azimuth, true) * width
-  const altNorm = clamp01(altitude / 70)
-  sunY = height * 0.94 - Math.pow(altNorm, 0.85) * height * 0.86
+  // 45° 以上按天顶处理：这样正午（本季节约 37°）时太阳能升到卡片上方，
+  // 不会被中间的登录卡片挡住；低太阳时方位角偏东西，本来就落在左右留白里
+  const altNorm = clamp01(altitude / 42)
+  sunY = height * 0.94 - Math.pow(altNorm, 0.75) * height * 0.92
   sunR = Math.max(26, Math.min(56, width * 0.032)) * (1 + (1 - altNorm) * 0.18)
 
   // 调试信息
@@ -396,28 +411,48 @@ function drawStars() {
 
 function drawClouds() {
   if (cloudsVisible <= 0.01) return
-  // 低太阳时把云染上一点暖色
   const warm = clamp01((12 - sunAlt) / 14)
-  const tint = warm > 0.35 ? `rgba(255, 214, 170, ${warm * 0.55})` : null
+  const warmColor = warm > 0.3 ? `rgba(255, 214, 170, ${warm * 0.35})` : null
 
   for (const c of clouds) {
     const a = c.alpha * cloudsVisible
     if (a <= 0.01) continue
+
     for (const p of c.puffs) {
       const px = c.x + p.dx
       const py = c.y + p.dy
-      const g = ctx.createRadialGradient(px, py - p.r * 0.25, 0, px, py, p.r)
-      g.addColorStop(0, `rgba(255,255,255,${a})`)
-      g.addColorStop(0.62, `rgba(255,255,255,${a * 0.7})`)
+      const pa = a * p.a
+      const core = p.r * 0.9
+
+      // ① 实心云泡：这是"有的地方大有的地方小"的关键——每团都是独立可辨的圆
+      ctx.globalAlpha = pa
+      ctx.fillStyle = '#ffffff'
+      ctx.beginPath()
+      ctx.arc(px, py, core, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.globalAlpha = 1
+
+      // ② 柔边：只在最外圈淡出，轮廓仍然清晰
+      const g = ctx.createRadialGradient(px, py, core * 0.78, px, py, p.r)
+      g.addColorStop(0, `rgba(255,255,255,${pa})`)
       g.addColorStop(1, 'rgba(255,255,255,0)')
       ctx.fillStyle = g
       ctx.beginPath()
       ctx.arc(px, py, p.r, 0, Math.PI * 2)
       ctx.fill()
 
-      if (tint) {
-        const gt = ctx.createRadialGradient(px, py + p.r * 0.35, 0, px, py, p.r)
-        gt.addColorStop(0, tint)
+      // ③ 底部一点冷色，给云体积感（不整体加暗，保持通透）
+      const gs = ctx.createRadialGradient(px, py + core * 0.5, 0, px, py + core * 0.1, core)
+      gs.addColorStop(0, `rgba(190, 210, 230, ${pa * 0.35})`)
+      gs.addColorStop(1, 'rgba(190, 210, 230, 0)')
+      ctx.fillStyle = gs
+      ctx.beginPath()
+      ctx.arc(px, py + core * 0.2, core, 0, Math.PI * 2)
+      ctx.fill()
+
+      if (warmColor) {
+        const gt = ctx.createRadialGradient(px, py + core * 0.6, 0, px, py, p.r)
+        gt.addColorStop(0, warmColor)
         gt.addColorStop(1, 'rgba(255,214,170,0)')
         ctx.fillStyle = gt
         ctx.beginPath()

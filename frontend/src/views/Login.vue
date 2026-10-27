@@ -265,6 +265,37 @@ async function handleLogin() {
   background: transparent;
   box-shadow: none;
 }
+/*
+  登录页的卡片固定亮色（天空负责氛围）。但全局暗色主题里有
+  `html.dark .el-input__wrapper { background:#131a22 }` 这类规则，
+  会把卡片里的输入框染黑，看起来像"只有输入框变了色"。
+  这里用更高的选择器权重把它固定成亮色。
+*/
+.form-card :deep(.el-input__wrapper) {
+  background-color: #ffffff;
+  box-shadow: 0 0 0 1px #c4d9f1 inset;
+}
+
+.form-card :deep(.el-input__wrapper:hover) {
+  box-shadow: 0 0 0 1px #a9c9ec inset;
+}
+
+.form-card :deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px var(--tp-primary) inset;
+}
+
+.form-card :deep(.el-input__inner) {
+  color: #0f172a;
+}
+
+.form-card :deep(.el-input__inner::placeholder) {
+  color: #94a3b8;
+}
+
+.form-card :deep(.el-form-item__label) {
+  color: #334155;
+}
+
 .form-card :deep(.el-card__body) {
   padding: 0;
 }
