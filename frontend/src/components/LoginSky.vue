@@ -33,6 +33,7 @@ import {
   BUCKETS,
   CLOUD_PARAMS,
   cloudPalette,
+  bucketHasIntensity,
   cloudVisibility,
   INTENSITY_FACTOR,
   INTENSITY_LABEL,
@@ -182,6 +183,8 @@ function makeStar() {
 function pickCloudSpot(region) {
   if (region === 'left') return { x: rand(width * 0.06, width * 0.12), y: rand(height * 0.3, height * 0.62) }
   if (region === 'right') return { x: rand(width * 0.88, width * 0.94), y: rand(height * 0.3, height * 0.62) }
+  // 中段：只有阴雨雪这种「满天云」的天气才会用到
+  if (region === 'mid') return { x: rand(width * 0.16, width * 0.84), y: rand(height * 0.3, height * 0.46) }
   return { x: rand(width * 0.12, width * 0.88), y: rand(height * 0.17, height * 0.27) }
 }
 
@@ -202,14 +205,7 @@ function preloadCloudImages() {
 
 function buildClouds() {
   refreshCloudPalette()
-  const base = CLOUD_PARAMS[currentWeatherBucket] || CLOUD_PARAMS.partly
-  const inten = INTENSITY_FACTOR[skyStore.intensity] || INTENSITY_FACTOR[2]
-  const params = {
-    count: base.count + (base.count > 0 ? inten.clouds : 0),
-    size: base.size * inten.size,
-    alpha: base.alpha,
-    speed: base.speed,
-  }
+  const params = CLOUD_PARAMS[currentWeatherBucket] || CLOUD_PARAMS.partly
   const list = []
 
   // ① 底层长云带：两张同样大小拼接，向右移动时无缝循环
@@ -241,7 +237,12 @@ function buildClouds() {
 
   // ② 单体云：数量由天气决定（晴 = 0 朵）
   const singles = Math.max(0, params.count - (params.count >= 5 ? 1 : 0))
-  const plan = ['top', 'left', 'right', 'top', 'left', 'right', 'top'].slice(0, singles)
+  const dense = currentWeatherBucket === 'overcast' || currentWeatherBucket === 'rain'
+    || currentWeatherBucket === 'snow' || currentWeatherBucket === 'thunder'
+  const fullPlan = dense
+    ? ['top', 'mid', 'top', 'left', 'right', 'mid', 'top', 'left', 'right', 'mid']
+    : ['top', 'left', 'right', 'top', 'left', 'right', 'top']
+  const plan = fullPlan.slice(0, singles)
   const usedIdx = new Set([6])
   for (const region of plan) {
     let imgIndex = Math.floor(Math.random() * 6)
@@ -256,7 +257,8 @@ function buildClouds() {
     let spot = null
     for (let tries = 0; tries < 30; tries++) {
       const candidate = pickCloudSpot(region)
-      if (!list.some((c) => !c.isBand && Math.hypot(c.hx - candidate.x, c.hy - candidate.y) < 380 * params.size)) {
+      const gap = 380 * params.size * (dense ? 0.72 : 1)
+      if (!list.some((c) => !c.isBand && Math.hypot(c.hx - candidate.x, c.hy - candidate.y) < gap)) {
         spot = candidate
         break
       }
@@ -1056,6 +1058,9 @@ function onWeatherChange(e) {
   buildClouds()
 }
 
+/** 当前天气是否有降水（雨/雪/雷暴）——只有这时「大中小」才有意义 */
+const intensityApplies = computed(() => bucketHasIntensity(skyStore.bucket))
+
 /** 调试：手动指定降水强度（'auto' 用天气码/降水量推断） */
 function onIntensityChange(e) {
   skyStore.intensityOverride = e.target.value
@@ -1137,6 +1142,7 @@ onMounted(() => {
         cloudCount: cloudList.value.length,
         intensity: skyStore.intensity,
         intensityForced: skyStore.intensityOverride,
+        intensityApplies: bucketHasIntensity(skyStore.bucket),
       }
     },
     setWeather(bucket) {
@@ -1221,11 +1227,18 @@ onBeforeUnmount(() => {
 
     <div v-show="!collapsed" class="dc-row dc-weather">
       <span class="dc-weather-label">强度</span>
-      <select class="dc-select" :value="String(skyStore.intensityOverride)" @change="onIntensityChange">
-        <option value="auto">自动（{{ INTENSITY_LABEL[skyStore.intensity] }}）</option>
-        <option value="1">小</option>
-        <option value="2">中</option>
-        <option value="3">大</option>
+      <select
+        class="dc-select"
+        :value="String(skyStore.intensityOverride)"
+        :disabled="!intensityApplies"
+        :title="intensityApplies ? '降水强度' : '当前天气没有降水，强度不适用'"
+        @change="onIntensityChange"
+      >
+        <option v-if="intensityApplies" value="auto">自动（{{ INTENSITY_LABEL[skyStore.intensity] }}）</option>
+        <option v-else value="auto">不适用（{{ skyStore.bucketLabel }}）</option>
+        <option v-if="intensityApplies" value="1">小</option>
+        <option v-if="intensityApplies" value="2">中</option>
+        <option v-if="intensityApplies" value="3">大</option>
       </select>
     </div>
 
@@ -1395,6 +1408,11 @@ onBeforeUnmount(() => {
   border-radius: 6px;
   outline: none;
   cursor: pointer;
+}
+
+.dc-select:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .dc-select option {

@@ -18,8 +18,10 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -238,25 +240,37 @@ public class SkyContextService {
         return out;
     }
 
-    /** 在候选里挑最可能的：先看行政区划名能否对上，再看人口 */
+    /**
+     * 在候选里挑最可能的。
+     *
+     * <p>这里踩过一个坑：geocoder 返回的 admin1/admin2 是**英文**（Shanghai / Henan），
+     * 拿中文城市名去 contains 永远匹配不上，导致「上海市」被一个同名小地方顶掉。
+     * 因此排序依据改为：名字完全相同的优先 → 名字以目标开头的优先 → 人口多的优先。
+     */
     private double[] bestForPlace(String name, String province, String city) {
         List<Cand> cands = candidates(name);
         if (cands.isEmpty()) {
             return null;
         }
-        String targetProvince = stripSuffix(province);
-        String targetCity = stripSuffix(city);
+        String target = stripSuffix(name);
         Cand best = null;
         double bestScore = Double.NEGATIVE_INFINITY;
         for (Cand c : cands) {
-            double score = 0;
-            if (isNotBlank(targetProvince) && c.matchesAdmin(targetProvince)) {
-                score += 5e8;
+            String cname = c.name() == null ? "" : c.name().trim();
+            double score = c.population() * 100.0;
+            if (cname.equals(name)) {
+                score += 1e12;          // 与输入完全一致（长春市）
+            } else if (isNotBlank(target) && cname.equals(target)) {
+                score += 1e10;          // 去掉行政后缀后一致（上海 vs 上海市）
+            } else if (isNotBlank(target) && cname.startsWith(target)) {
+                score += 1e8;           // 前缀匹配（上海市场社区）
             }
-            if (isNotBlank(targetCity) && c.matchesAdmin(targetCity)) {
-                score += 8e8;
+            if (isNotBlank(city) && c.matchesAdmin(stripSuffix(city))) {
+                score += 1e6;
             }
-            score += c.population();
+            if (isNotBlank(province) && c.matchesAdmin(stripSuffix(province))) {
+                score += 5e5;
+            }
             if (score > bestScore) {
                 bestScore = score;
                 best = c;
@@ -288,21 +302,31 @@ public class SkyContextService {
         return new double[]{best.lat(), best.lon()};
     }
 
-    /** 先按原名查，查不到再剥后缀重试 */
+    /**
+     * 查询候选地点：原名与「去后缀名」各查一次并**合并**。
+     *
+     * <p>踩过的坑：geocoder 对「上海市」会模糊命中河南洛阳的「上海市场社区」，
+     * 如果只在结果为空时才去查「上海」，就永远查不到真正的上海。
+     * 合并之后由 {@link #bestForPlace} 的「同名优先」规则挑出正确结果。
+     */
     private List<Cand> candidates(String name) {
         String key = "cand|" + name;
         List<Cand> cached = candidateCache.get(key);
         if (cached != null) {
             return cached;
         }
+        String stripped = stripSuffix(name);
+        Set<String> seen = new HashSet<>();
         List<Cand> out = new ArrayList<>();
-        for (String candidate : new String[]{name, stripSuffix(name)}) {
+        for (String candidate : new String[]{stripped, name}) {
             if (!isNotBlank(candidate) || candidate.length() < 2) {
                 continue;
             }
-            out.addAll(queryGeocoder(candidate));
-            if (!out.isEmpty()) {
-                break;
+            for (Cand c : queryGeocoder(candidate)) {
+                String dedupeKey = String.format("%.3f,%.3f", c.lat(), c.lon());
+                if (seen.add(dedupeKey)) {
+                    out.add(c);
+                }
             }
         }
         candidateCache.put(key, out);

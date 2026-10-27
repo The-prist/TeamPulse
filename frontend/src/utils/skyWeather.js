@@ -116,10 +116,22 @@ export const CLOUD_PARAMS = {
 }
 
 /** 强度加成：云量、尺寸、粒子数量、粒子大小 */
+/** 强度只影响「有降水粒子」的天气 */
+const INTENSITY_BUCKETS = new Set(['rain', 'snow', 'thunder'])
+
+/** 当前天气是否受大中小影响（只有降水类才有意义） */
+export function bucketHasIntensity(bucket) {
+  return INTENSITY_BUCKETS.has(bucket)
+}
+
+/**
+ * 强度加成：只作用于降水粒子（数量 / 尺寸 / 下落速度）。
+ * 刻意不影响云的数量与大小 —— 否则「晴/阴天调大中小」也会有变化，那不符合现实。
+ */
 export const INTENSITY_FACTOR = {
-  1: { clouds: 0, size: 1.0, particles: 0.5, particleSize: 0.8 },
-  2: { clouds: 0, size: 1.05, particles: 1, particleSize: 1 },
-  3: { clouds: 1, size: 1.12, particles: 2, particleSize: 1.35 },
+  1: { particles: 0.5, particleSize: 0.8 },
+  2: { particles: 1, particleSize: 1 },
+  3: { particles: 2, particleSize: 1.35 },
 }
 
 /** 时段 */
