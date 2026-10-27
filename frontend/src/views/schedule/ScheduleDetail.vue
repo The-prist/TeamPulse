@@ -137,10 +137,18 @@ onMounted(async () => {
 })
 /** 与后端一致：日程创建人 或 拥有 schedule:manage 才能删除 */
 const canDelete = computed(() => {
-  if (auth.hasPerm('schedule:manage')) return true
-  const me = auth.user?.userId
-  const creator = detail.value?.creatorId ?? schedule.value?.creatorId
-  return creator != null && me != null && creator === me
+  // 注意：本组件的数据放在 reactive 的 d 里（不是 detail/schedule）。
+  // 之前这里误写成 detail.value / schedule.value，渲染时抛 ReferenceError，
+  // 被 main.js 的全局错误处理捕获，整页显示「页面出现异常，请刷新后重试」。
+  // 同时用 try/catch 兜底：模板里的 computed 一旦抛错会让整页白屏，代价太大。
+  try {
+    if (auth.hasPerm('schedule:manage')) return true
+    const me = auth.user?.userId
+    const creator = d.creatorId
+    return creator != null && me != null && String(creator) === String(me)
+  } catch (e) {
+    return false
+  }
 })
 
 </script>
