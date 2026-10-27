@@ -145,7 +145,7 @@ function switchPanel() {
 }
 .aside {
   border-right: 1px solid var(--tp-border);
-  background: #fbfdff;
+  background: var(--tp-surface);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -173,7 +173,7 @@ function switchPanel() {
 .brand-name {
   font-size: 15px;
   font-weight: 650;
-  color: #0f172a;
+  color: var(--tp-text-strong);
   letter-spacing: 0.3px;
 }
 .menu {
@@ -183,7 +183,7 @@ function switchPanel() {
 .menu :deep(.el-menu-item-group__title) {
   padding-left: 18px !important;
   font-size: 11.5px;
-  color: #94a3b8;
+  color: var(--tp-text-faint);
   letter-spacing: 0.4px;
 }
 .menu :deep(.el-menu-item) {
@@ -195,7 +195,7 @@ function switchPanel() {
 }
 .menu :deep(.el-menu-item.is-active) {
   background: var(--tp-primary-soft);
-  color: #1d4ed8;
+  color: var(--tp-primary);
   font-weight: 600;
 }
 .header {
@@ -204,7 +204,7 @@ function switchPanel() {
   justify-content: space-between;
   height: 56px;
   border-bottom: 1px solid var(--tp-border);
-  background: #fbfdff;
+  background: var(--tp-surface);
 }
 .header-right {
   display: flex;
@@ -213,7 +213,7 @@ function switchPanel() {
 }
 .user-name {
   font-size: 13px;
-  color: #334155;
+  color: var(--tp-text-muted);
 }
 .main {
   padding: 0;

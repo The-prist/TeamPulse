@@ -6,10 +6,14 @@
 -->
 <script setup>
 import { clearNetError, netState, retryNetError } from '@/utils/netErrors'
+import ThemeToggle from '@/components/ThemeToggle.vue'
 </script>
 
 <template>
   <router-view />
+
+  <!-- 左下角弯月：切换亮/暗主题（带覆盖→圆形揭开的动画） -->
+  <ThemeToggle />
 
   <transition name="net-fade">
     <div v-if="netState.message" class="net-banner" role="alert">

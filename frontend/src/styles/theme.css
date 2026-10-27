@@ -1,0 +1,344 @@
+/* =====================================================================
+   主题与选项卡可见性
+   ---------------------------------------------------------------------
+   1) 暗色模式：html.dark 下覆盖自定义 --tp-* 变量与 Element Plus 暗色变量
+   2) 选项卡可见度：.el-tabs__item / .el-radio-button / .el-segmented
+      统一提高字号、字重、边框与选中态对比
+   ===================================================================== */
+
+/* ---------------------------------------------------------------- 选项卡 */
+:root {
+  --tp-tab-radius: 10px;
+  --tp-tab-font: 14px;
+  --tp-tab-active-bg: #ffffff;
+  --tp-tab-hover-bg: rgba(47, 111, 208, 0.08);
+  --tp-tab-track: rgba(47, 111, 208, 0.18);
+}
+
+/* el-tabs：加大字号与选中态对比，底部指示条加粗 */
+.el-tabs__item {
+  font-size: var(--tp-tab-font);
+  font-weight: 600;
+  color: var(--tp-text-muted);
+  height: 42px;
+  line-height: 42px;
+  padding: 0 20px !important;
+  transition: color 0.18s ease, background 0.18s ease;
+  border-radius: 8px 8px 0 0;
+}
+
+.el-tabs__item:hover {
+  color: var(--tp-text);
+  background: var(--tp-tab-hover-bg);
+}
+
+.el-tabs__item.is-active {
+  color: var(--tp-primary);
+  font-weight: 700;
+  background: var(--tp-tab-active-bg);
+}
+
+/* 底部指示条：更粗更明显 */
+.el-tabs__active-bar {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--tp-primary);
+}
+
+/* 轨道线加深，让选项卡边界清楚 */
+.el-tabs__nav-wrap::after {
+  height: 2px;
+  background: var(--tp-tab-track);
+}
+
+/* el-radio-button：做成明显的分段控件 */
+.el-radio-button__inner {
+  font-size: var(--tp-tab-font);
+  font-weight: 600;
+  padding: 10px 20px;
+  border-width: 1px;
+  color: var(--tp-text-muted);
+  background: var(--tp-bg-card);
+  transition: all 0.18s ease;
+}
+
+.el-radio-button__inner:hover {
+  color: var(--tp-primary);
+  border-color: var(--tp-primary);
+}
+
+.el-radio-button__original-radio:checked + .el-radio-button__inner {
+  color: #fff;
+  font-weight: 700;
+  background: var(--tp-primary);
+  border-color: var(--tp-primary);
+  box-shadow: 0 4px 12px -4px rgba(47, 111, 208, 0.6);
+}
+
+/* el-segmented（若后续使用）*/
+.el-segmented {
+  --el-segmented-item-selected-bg-color: var(--tp-primary);
+  --el-segmented-item-selected-color: #fff;
+  --el-segmented-item-hover-bg-color: var(--tp-tab-hover-bg);
+  padding: 4px;
+  border-radius: var(--tp-tab-radius);
+}
+
+.el-segmented__item {
+  font-weight: 600;
+  font-size: var(--tp-tab-font);
+}
+
+/* ---------------------------------------------------------------- 暗色模式 */
+html.dark {
+  /* 页面与卡片：三级层次（页 < 卡 < 卡头） */
+  --tp-bg-page: #0d1117;
+  --tp-bg-card: #161b22;
+  --tp-bg-card-head: #1c232c;
+  --tp-bg-subtle: #1f2731;
+
+  --tp-border: #2a3441;
+  --tp-border-strong: #3a4756;
+
+  --tp-text: #e6edf3;
+  --tp-text-muted: #9aa8b8;
+  --tp-text-faint: #6e7d8d;
+
+  --tp-primary: #4d8bf0;
+  --tp-primary-soft: #1b2a44;
+
+  --tp-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5), 0 10px 24px -18px rgba(0, 0, 0, 0.9);
+  --tp-shadow-hover: 0 2px 8px rgba(0, 0, 0, 0.55), 0 16px 32px -18px rgba(0, 0, 0, 0.95);
+
+  --tp-tab-active-bg: #1b2531;
+  --tp-tab-hover-bg: rgba(77, 139, 240, 0.14);
+  --tp-tab-track: rgba(77, 139, 240, 0.25);
+
+  color-scheme: dark;
+}
+
+/* Element Plus 暗色变量微调（默认灰偏暖，这里压成蓝黑） */
+html.dark {
+  --el-bg-color: var(--tp-bg-card);
+  --el-bg-color-page: var(--tp-bg-page);
+  --el-bg-color-overlay: #1b232d;
+  --el-text-color-primary: var(--tp-text);
+  --el-text-color-regular: #c7d3e0;
+  --el-text-color-secondary: var(--tp-text-muted);
+  --el-text-color-placeholder: var(--tp-text-faint);
+  --el-border-color: var(--tp-border);
+  --el-border-color-light: var(--tp-border);
+  --el-border-color-lighter: #232c37;
+  --el-border-color-extra-light: #1e2630;
+  --el-fill-color: #1b232d;
+  --el-fill-color-light: #1f2731;
+  --el-fill-color-lighter: #222b36;
+  --el-fill-color-blank: var(--tp-bg-card);
+  --el-disabled-bg-color: #1b232d;
+  --el-mask-color: rgba(6, 10, 15, 0.75);
+}
+
+html.dark body {
+  background: radial-gradient(1200px 600px at 15% -10%, #16233a 0%, transparent 60%), var(--tp-bg-page);
+  color: var(--tp-text);
+}
+
+/* 卡片头：亮色时是淡蓝渐变，暗色改成深蓝渐变 */
+html.dark .el-card__header {
+  background-image: linear-gradient(180deg, #202a38 0%, var(--tp-bg-card-head) 100%);
+}
+
+/* 表格：暗色下的表头与斑马纹 */
+html.dark .el-table {
+  --el-table-header-bg-color: rgba(38, 52, 70, 0.85);
+  --el-table-header-text-color: #cfe0f5;
+  --el-table-row-hover-bg-color: rgba(77, 139, 240, 0.16);
+  --el-table-tr-bg-color: transparent;
+  --el-table-border-color: var(--tp-border);
+  --el-table-text-color: var(--tp-text);
+}
+
+/* 输入框 / 下拉 / 弹窗 */
+html.dark .el-input__wrapper,
+html.dark .el-textarea__inner,
+html.dark .el-select__wrapper {
+  background-color: #131a22;
+  box-shadow: 0 0 0 1px var(--tp-border) inset;
+}
+
+html.dark .el-input__inner,
+html.dark .el-textarea__inner {
+  color: var(--tp-text);
+}
+
+html.dark .el-dialog,
+html.dark .el-drawer {
+  background: var(--tp-bg-card);
+  border: 1px solid var(--tp-border);
+}
+
+html.dark .el-dialog__title,
+html.dark .el-drawer__title {
+  color: var(--tp-text);
+}
+
+/* 日历（日程管理默认视图）*/
+html.dark .el-calendar {
+  background: transparent;
+  --el-calendar-border: var(--tp-border);
+}
+
+html.dark .el-calendar-table td {
+  background: var(--tp-bg-card);
+  border-color: var(--tp-border);
+}
+
+html.dark .el-calendar-table .el-calendar-day:hover {
+  background: rgba(77, 139, 240, 0.12);
+}
+
+html.dark .el-calendar__header,
+html.dark .el-calendar__title {
+  color: var(--tp-text);
+}
+
+/* 描述列表 / 标签页内容 / 分页 */
+html.dark .el-descriptions__body {
+  background: var(--tp-bg-card);
+  color: var(--tp-text);
+}
+
+html.dark .el-descriptions__label {
+  color: var(--tp-text-muted);
+}
+
+html.dark .el-pagination {
+  --el-pagination-bg-color: transparent;
+  --el-pagination-text-color: var(--tp-text-muted);
+  --el-pagination-button-disabled-bg-color: transparent;
+}
+
+/* 空状态文字 */
+html.dark .el-empty__description p {
+  color: var(--tp-text-muted);
+}
+
+/* 主题切换遮罩层需要压在弹窗之上 */
+.tp-theme-overlay {
+  position: fixed;
+  z-index: 4000;
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------- 主题切换动画 */
+/* 注册成 <percentage> 才能被 transition 平滑过渡（Chromium 支持；不支持时组件会退化为淡出） */
+@property --tp-reveal {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+/*
+  揭开：覆盖层保持不透明，中间先变透明并向外扩散。
+  mask 用「透明 0~r、黑 r+ε~100%」，r 从 0% 长到 150%，看起来就是从屏幕中心拉开一道圆。
+*/
+.tp-theme-overlay.is-revealing {
+  -webkit-mask-image: radial-gradient(
+    circle at 50% 50%,
+    transparent 0 var(--tp-reveal),
+    #000 calc(var(--tp-reveal) + 2px)
+  );
+  mask-image: radial-gradient(
+    circle at 50% 50%,
+    transparent 0 var(--tp-reveal),
+    #000 calc(var(--tp-reveal) + 2px)
+  );
+  /* 过渡由组件内联设置（内联优先，避免被上一阶段的 transition 覆盖） */
+}
+
+/* ---------------------------------------------------------------- 暗色：布局层 */
+html.dark {
+  --tp-surface: #12181f;
+  --tp-surface-strong: #171f28;
+  --tp-text-strong: #e6edf3;
+}
+
+html.dark .el-menu {
+  --el-menu-bg-color: transparent;
+  --el-menu-text-color: var(--tp-text-muted);
+  --el-menu-hover-bg-color: rgba(77, 139, 240, 0.14);
+  --el-menu-active-color: var(--tp-primary);
+}
+
+/* 侧边栏/顶栏的品牌名、用户名在暗色下要提亮（已在组件里改用变量，这里兜底） */
+html.dark .brand-name,
+html.dark .user-name {
+  color: var(--tp-text);
+}
+
+/* ---------------------------------------------------------------- 暗色：自绘日历 */
+/* 日程管理的日历不是 el-calendar，而是 ScheduleCalendar 自绘的 .cal-* 结构 */
+html.dark .cal-weekday {
+  color: var(--tp-text-muted);
+  border-bottom-color: var(--tp-border);
+}
+
+html.dark .cal-cell {
+  background: var(--tp-bg-card);
+  border-color: var(--tp-border);
+}
+
+html.dark .cal-cell.is-weekend {
+  background: #131a22;
+}
+
+html.dark .cal-cell.is-other-month {
+  background: #10161d;
+}
+
+html.dark .cal-cell.is-today {
+  box-shadow: inset 0 0 0 2px var(--tp-primary);
+}
+
+html.dark .cell-date {
+  color: var(--tp-text-muted);
+}
+
+html.dark .cal-cell.is-today .cell-date {
+  color: var(--tp-primary);
+  font-weight: 700;
+}
+
+/*
+  事件卡：背景色是内联的浅色 tint（每个日程一种颜色），暗色下不能直接覆盖，
+  否则会丢掉「一个日程一种颜色」的视觉语言。用一层半透明黑压暗它，
+  既保留色相又保证文字对比度。
+*/
+html.dark .cal-item {
+  box-shadow: inset 0 0 0 100px rgba(6, 10, 15, 0.62);
+  color: #dce7f3;
+}
+
+html.dark .cal-item .item-time {
+  color: #a8c4e6;
+}
+
+html.dark .cal-item .item-title {
+  color: #eaf1f8;
+}
+
+html.dark .cell-more,
+html.dark .cell-add {
+  color: var(--tp-primary);
+}
+
+html.dark .cell-dot-more {
+  color: var(--tp-text-faint);
+}
+
+/* 工作日志 / 考勤日历同类结构（同样自绘） */
+html.dark .log-cal-cell,
+html.dark .att-cal-cell {
+  background: var(--tp-bg-card);
+  border-color: var(--tp-border);
+}

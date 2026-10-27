@@ -104,7 +104,7 @@ async function handleLogout() {
 }
 .aside {
   border-right: 1px solid var(--tp-border);
-  background: #fbfdff;
+  background: var(--tp-surface);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -132,7 +132,7 @@ async function handleLogout() {
 .brand-name {
   font-size: 15px;
   font-weight: 650;
-  color: #0f172a;
+  color: var(--tp-text-strong);
   letter-spacing: 0.3px;
 }
 .menu {
@@ -142,7 +142,7 @@ async function handleLogout() {
 .menu :deep(.el-menu-item-group__title) {
   padding-left: 18px !important;
   font-size: 11.5px;
-  color: #94a3b8;
+  color: var(--tp-text-faint);
   letter-spacing: 0.4px;
 }
 .menu :deep(.el-menu-item) {
@@ -154,7 +154,7 @@ async function handleLogout() {
 }
 .menu :deep(.el-menu-item.is-active) {
   background: #ecfdf5;
-  color: #047857;
+  color: var(--tp-primary);
   font-weight: 600;
 }
 .header {
@@ -163,7 +163,7 @@ async function handleLogout() {
   justify-content: space-between;
   height: 56px;
   border-bottom: 1px solid var(--tp-border);
-  background: #fbfdff;
+  background: var(--tp-surface);
 }
 .header-right {
   display: flex;

@@ -15,6 +15,10 @@
   --tp-bg-card: #f2f8ff;
   --tp-bg-card-head: #e2effd;
   --tp-bg-subtle: #e9f3fe;
+  /* 布局层（侧边栏 / 顶栏）与强调文字，暗色模式下单独覆盖 */
+  --tp-surface: #fbfdff;
+  --tp-surface-strong: #ffffff;
+  --tp-text-strong: #0f172a;
 
   /* 描边：默认 / 强调 */
   --tp-border: #c4d9f1;

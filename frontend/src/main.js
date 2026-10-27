@@ -4,10 +4,16 @@ import ElementPlus from 'element-plus'
 import { ElMessage } from 'element-plus'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import 'element-plus/dist/index.css'
+import 'element-plus/theme-chalk/dark/css-vars.css'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import App from './App.vue'
 import router from './router'
 import './styles/index.css'
+import './styles/theme.css'
+import { initTheme } from './utils/theme'
+
+// 必须在 mount 之前确定主题，否则暗色用户会看到一帧白屏
+initTheme()
 
 const app = createApp(App)
 
