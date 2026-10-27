@@ -1,0 +1,76 @@
+classDiagram
+  class User {
+    Long userId
+    String username
+    String role
+    Long departmentId
+    String employeeNo
+  }
+  class Department {
+    Long departmentId
+    Long parentId
+    String deptCode
+    Long leaderId
+  }
+  class Role {
+    String roleKey
+    String dataScope
+  }
+  class Permission {
+    String permKey
+    String module
+  }
+  class Team {
+    Long teamId
+    String teamName
+  }
+  class TeamMember {
+    Long teamId
+    Long userId
+    String teamRole
+  }
+  class Schedule {
+    Long scheduleId
+    Long creatorId
+    Date startTime
+  }
+  class Kanban {
+    Long kanbanId
+    Long teamId
+  }
+  class IotDevice {
+    String deviceSn
+    String secret
+    String status
+  }
+  class AttendanceRecord {
+    Long recordId
+    String employeeNo
+    DateTime punchTime
+    String messageId
+  }
+  class AttendanceDaily {
+    Long userId
+    Date workDate
+    String status
+  }
+  class MakeupRequest {
+    Long requestId
+    String status
+    Long approverId
+  }
+  class AuditLog {
+    Long auditId
+    String module
+    String action
+    String result
+  }
+  Department "1" --> "N" User
+  User "N" --> "1" Role
+  Team "1" --> "N" TeamMember
+  TeamMember "N" --> "1" User
+  IotDevice "1" --> "N" AttendanceRecord
+  AttendanceRecord "N" --> "1" User
+  AttendanceDaily "1" --> "N" AttendanceRecord
+  MakeupRequest "N" --> "1" AttendanceRecord
+  AuditLog ..> User

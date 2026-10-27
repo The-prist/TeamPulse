@@ -1,0 +1,50 @@
+flowchart LR
+  subgraph EP[终端]
+    ESP32["ESP32 打卡机<br/>UART 读卡 · HMAC 签名"]
+    SIM["设备模拟器 / curl<br/>联调与回归用"]
+  end
+  subgraph GW[接入层]
+    NGX["Nginx<br/>静态托管 · 反向代理 · 同源"]
+    MQ["Mosquitto<br/>MQTT 1883 · 密码认证"]
+    HTTPF["HTTP 兜底 /iot/v1<br/>同一套验签"]
+  end
+  subgraph APP[应用层 Spring Boot 单体]
+    SEC["安全过滤器链<br/>JWT + @PreAuthorize + 数据范围"]
+    D1["协作域<br/>用户/团队/日程/看板/日志/评论"]
+    D2["考勤域<br/>设备/规则/打卡/补卡审批"]
+    D3["权限域<br/>角色/权限/数据范围"]
+    D4["审计域<br/>AOP 切面/审计查询"]
+    D5["概览统计<br/>仪表盘/公司概览"]
+    D6["横切能力<br/>traceId · 指标 · 统一异常"]
+    DAO["MyBatis-Plus 持久层"]
+    CRON["定时结算 00:05<br/>日汇总重算"]
+  end
+  subgraph DATA[数据层]
+    MYSQL[("MySQL 8.0<br/>21 表 · utf8mb4")]
+    REDIS[("Redis 7<br/>nonce 防重放")]
+  end
+  subgraph OBS[可观测 可选]
+    PROM["Prometheus<br/>抓取 /actuator/prometheus"]
+    GRAF["Grafana<br/>7 个面板 · 只绑回环"]
+  end
+  ESP32 -->|HTTP 80| NGX
+  ESP32 -->|MQTT 1883| MQ
+  SIM -->|HTTP| HTTPF
+  NGX -->|静态 + /api| SEC
+  MQ -->|attendance/checkin| D2
+  HTTPF --> D2
+  SEC --> D1
+  SEC --> D2
+  SEC --> D3
+  SEC --> D4
+  SEC --> D5
+  D1 --> DAO
+  D2 --> DAO
+  D3 --> DAO
+  D4 --> DAO
+  D5 --> DAO
+  DAO -->|JDBC| MYSQL
+  D1 -->|SET NX| REDIS
+  CRON --> DAO
+  APP -.->|指标| PROM
+  PROM -.-> GRAF

@@ -1,0 +1,37 @@
+@startuml 图2-部署图
+title 图 2　部署图（腾讯云轻量 4C4G · Rocky Linux 10）
+
+actor "浏览器" as BROWSER
+actor "ESP32 打卡机" as ESP32
+actor "运维终端" as OPS
+
+node "云服务器 81.70.102.116（公网 IP）\nap-beijing · Docker 29.9\n盘 40G · 内存 3.7G + 2G swap · firewalld 关闭（用腾讯云控制台防火墙）" as CLOUD {
+
+  node "Docker 网络 teampulse_default" as NET {
+    component "tp-frontend\nnginx:1.27-alpine\n80:80（唯一对公网）\n托管 SPA + 反代 /api /iot" as FE
+    component "tp-backend\nteampulse/backend:1.0.0\n8080（仅内网 expose）\nSpring Boot 单体" as BE
+    database "tp-mysql\nmysql:8.0\n127.0.0.1:3306\n数据卷 mysql-data" as DB
+    database "tp-redis\nredis:7-alpine\n6379（仅内网）· 128M LRU" as RC
+    queue "tp-mosquitto\neclipse-mosquitto:2\n1883（对公网）· 密码文件挂载" as MQ
+    component "tp-prometheus\nprofile=monitoring\n127.0.0.1:9090" as PROM
+    component "tp-grafana\nprofile=monitoring\n127.0.0.1:3000" as GRAF
+    folder "数据卷\nmysql-data / redis-data / mosquitto-data /\nbackend-logs / prometheus-data / grafana-data" as VOL
+  }
+}
+
+BROWSER --> FE : "公网 http://81.70.102.116/ (80)"
+ESP32 --> MQ : "MQTT 1883（需控制台放行）"
+OPS --> CLOUD : "SSH 22（密钥登录）"
+
+FE --> BE
+BE --> DB
+BE --> RC
+BE --> MQ
+PROM --> GRAF
+BE ..> PROM : 指标抓取
+
+note bottom
+  8080 / 3000 / 9090 均不对公网开放；
+  看监控用 SSH 隧道：ssh -L 3000:127.0.0.1:3000 root@81.70.102.116
+end note
+@enduml

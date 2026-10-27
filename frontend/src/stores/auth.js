@@ -51,12 +51,17 @@ const userId = computed(() => user.value?.userId ?? null)
   /** 是否拥有某个权限点，如 attendance:approve */
   function hasPerm(key) {
     if (!key) return true
+    // 超管恒为 true：与后端 LoginUser.hasPermission 保持一致。
+    // 即使登录态里缓存的是旧权限（空数组）或库里漏了授权行，
+    // 超管也不会出现「菜单按钮突然消失」这种像 bug 的现象。
+    if (role.value === 'sysadmin') return true
     return permissions.value.includes(key)
   }
 
   /** 任意一个权限点命中即可 */
   function hasAnyPerm(keys) {
     if (!keys || !keys.length) return true
+    if (role.value === 'sysadmin') return true
     return keys.some((k) => permissions.value.includes(k))
   }
 
@@ -88,7 +93,9 @@ const userId = computed(() => user.value?.userId ?? null)
   async function refreshProfile() {
     if (!token.value) return null
     const me = await authApi.me()
-    // /auth/me 只返回账号基本信息，权限点保留登录时写入的那份
+    // /auth/me 现在会返回 permissions / dataScope / roleName / departmentName，
+    // 因此刷新页面就能「自愈」：旧会话缺权限字段时，这里会被后端的最新值覆盖，
+    // 不再出现「刷新一次按钮全消失、必须重新登录」的问题。
     const previous = user.value || {}
     user.value = {
       ...previous,
@@ -96,7 +103,12 @@ const userId = computed(() => user.value?.userId ?? null)
       username: me.username,
       nickname: me.nickname,
       role: me.role,
+      roleName: me.roleName ?? previous.roleName,
       employeeNo: me.employeeNo,
+      departmentId: me.departmentId ?? previous.departmentId,
+      departmentName: me.departmentName ?? previous.departmentName,
+      dataScope: me.dataScope ?? previous.dataScope,
+      permissions: Array.isArray(me.permissions) ? me.permissions : (previous.permissions || []),
     }
     tokenStorage.setUser(user.value)
     return user.value

@@ -2,9 +2,11 @@ package com.teampulse.module.rbac.service;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.teampulse.module.rbac.entity.Department;
+import com.teampulse.module.rbac.entity.Permission;
 import com.teampulse.module.rbac.entity.Role;
 import com.teampulse.module.rbac.entity.RolePermission;
 import com.teampulse.module.rbac.mapper.DepartmentMapper;
+import com.teampulse.module.rbac.mapper.PermissionMapper;
 import com.teampulse.module.rbac.mapper.RoleMapper;
 import com.teampulse.module.rbac.mapper.RolePermissionMapper;
 import lombok.RequiredArgsConstructor;
@@ -31,8 +33,12 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class RbacService {
 
+    /** 超管角色标识：拥有全部权限点，见 {@link #permissionsOf} */
+    public static final String SYS_ADMIN = "sysadmin";
+
     private final RoleMapper roleMapper;
     private final RolePermissionMapper rolePermissionMapper;
+    private final PermissionMapper permissionMapper;
     private final DepartmentMapper departmentMapper;
 
     /** roleKey → 权限点集合 */
@@ -57,9 +63,24 @@ public class RbacService {
         return role.getDataScope().toUpperCase();
     }
 
+    /**
+     * 角色 → 权限点集合。
+     *
+     * <p>超管（sysadmin）是唯一的例外：**直接取 permission 全表**，而不是只看
+     * role_permission 的授权行。这样即使有人误删了 sysadmin 的授权行、或迁移里漏了
+     * 新增的权限点，超管也不会出现「少一个权限、按钮突然消失」的情况——这是
+     * 「超管拥有全部权限」的硬保证，不依赖数据正确性。
+     */
     public Set<String> permissionsOf(String roleKey) {
         if (!StringUtils.hasText(roleKey)) {
             return Set.of();
+        }
+        if (SYS_ADMIN.equalsIgnoreCase(roleKey)) {
+            return permCache.computeIfAbsent(SYS_ADMIN, k -> permissionMapper
+                    .selectList(Wrappers.<Permission>lambdaQuery())
+                    .stream()
+                    .map(Permission::getPermKey)
+                    .collect(Collectors.toUnmodifiableSet()));
         }
         return permCache.computeIfAbsent(roleKey, k -> rolePermissionMapper
                 .selectList(Wrappers.<RolePermission>lambdaQuery().eq(RolePermission::getRoleKey, k))

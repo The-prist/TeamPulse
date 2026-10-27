@@ -1,0 +1,46 @@
+@startuml 图3-业务流程图
+title 图 3　业务流程图：设备打卡上报（含异常分支）
+
+|设备（ESP32）|
+start
+:读卡 → 组 JSON;
+:HMAC 签名\nsign = HMAC(deviceSn|employeeNo|punchTime|nonce);
+:写入 nonce;
+
+|消息 / 接入|
+:MQTT 发布 attendance/checkin;
+:Nginx / Mosquitto 转发;
+
+|后端服务|
+:按 deviceSn 取 secret;
+if (验签 + 时钟漂移 ±300s) then (通过)
+  :nonce 去重（SET NX EX 600）;
+  if (nonce 首次) then (是)
+    :工号 → 用户;
+    if (工号存在且规则已配) then (是)
+      :按规则判定状态\n迟到 / 早退 / 正常;
+      :唯一索引防重复\n(message_id、employee_no+punch_time);
+    else (否)
+      #FFE0E0:失败 61001 工号不存在\n61002 未配置规则;
+      stop
+    endif
+  else (否)
+    #FFE0E0:失败 60004 重放\n或 幂等返回 200;
+    stop
+  endif
+else (否)
+  #FFE0E0:失败 60003 签名错\n60006 时钟漂移;
+  stop
+endif
+
+|存储|
+:写 attendance_record;
+:刷新 attendance_daily;
+:返回 Ack(id, status, workDate);
+stop
+
+note bottom
+  MQTT 与 HTTP 两个入口共用同一段处理逻辑（AttendanceService.handlePunch），
+  source 字段区分 MQTT / HTTP。
+end note
+@enduml

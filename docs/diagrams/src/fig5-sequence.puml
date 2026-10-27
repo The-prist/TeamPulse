@@ -1,0 +1,31 @@
+@startuml 图5-时序图
+title 图 5　时序图：打卡上报（验签 → 防重放 → 幂等落库）
+
+participant "ESP32" as DEV
+participant "Mosquitto" as MQ
+participant "Backend" as BE
+participant "Redis" as RDS
+participant "MySQL" as DB
+
+DEV -> MQ : publish checkin{sn, emp, time, nonce, sign}
+MQ -> BE : 投递（订阅者 teampulse-backend-1）
+BE -> DB : 按 deviceSn 取 secret
+DB --> BE : secret
+BE -> BE : 校验 HMAC 与时钟漂移(±300s)
+BE -> RDS : SET NX nonce EX 600
+RDS --> BE : 首次 = true
+BE -> DB : INSERT attendance_record
+DB --> BE : 唯一键冲突 → 幂等返回 200
+BE -> DB : 刷新 attendance_daily
+BE -> BE : 指标 punch_total{result}
+BE --> MQ : Ack(id, status, workDate)
+MQ --> DEV : 上报结果
+
+note over BE
+  ① 幂等三层：message_id 唯一索引（报文重投）
+     / nonce 防重放（攻击）
+     / employee_no + punch_time 唯一索引（业务重复）
+  ② 错误码：验签失败 60003、时钟漂移 60006、重放 60004、
+     工号不存在 61001、规则缺失 61002
+end note
+@enduml

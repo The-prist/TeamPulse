@@ -58,7 +58,10 @@ public class LoginUser implements UserDetails {
     }
 
     public boolean hasPermission(String perm) {
-        return permissions != null && permissions.contains(perm);
+        // 超管恒为 true：权限点是否齐全不该由数据正确性决定。
+        // 否则一旦 role_permission 少了行（迁移漏数据、误删），超管就会
+        // 「少一个按钮」，现象像前端 bug，排查成本极高。
+        return isSysAdmin() || (permissions != null && permissions.contains(perm));
     }
 
     /** 数据范围是否为全公司 */

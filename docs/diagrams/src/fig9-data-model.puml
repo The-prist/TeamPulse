@@ -1,0 +1,194 @@
+@startuml 图9-数据模型图
+title 图 9　数据模型图（21 表的核心关系，无物理外键）
+hide circle
+skinparam linetype ortho
+
+entity "department" as department {
+  * department_id : bigint <<PK>>
+  --
+  parent_id : bigint
+  dept_name / dept_code
+  leader_id : bigint
+}
+
+entity "user" as user {
+  * user_id : bigint <<PK>>
+  --
+  username / password
+  role : varchar  (RBAC key)
+  department_id : bigint
+  employee_no : varchar
+}
+
+entity "role" as role {
+  * role_id : bigint <<PK>>
+  --
+  role_key : varchar
+  data_scope : ALL/DEPT/SELF
+}
+
+entity "permission" as permission {
+  * permission_id : bigint <<PK>>
+  --
+  perm_key : varchar
+  module : varchar
+}
+
+entity "role_permission" as role_permission {
+  * id : bigint <<PK>>
+  --
+  role_key : varchar
+  perm_key : varchar
+}
+
+entity "team" as team {
+  * team_id : bigint <<PK>>
+  --
+  team_name : varchar
+  leader_id : bigint
+  creator_id : bigint
+}
+
+entity "team_member" as team_member {
+  * id : bigint <<PK>>
+  --
+  team_id : bigint
+  user_id : bigint
+  team_role : leader/member
+}
+
+entity "schedule" as schedule {
+  * schedule_id : bigint <<PK>>
+  --
+  creator_id : bigint
+  team_id : bigint
+  start_time / end_time
+}
+
+entity "kanban" as kanban {
+  * kanban_id : bigint <<PK>>
+  --
+  team_id : bigint
+  creator_id : bigint
+}
+
+entity "kanban_column" as kanban_column {
+  * column_id : bigint <<PK>>
+  --
+  kanban_id : bigint
+  sort_order : int
+}
+
+entity "kanban_item" as kanban_item {
+  * item_id : bigint <<PK>>
+  --
+  column_id : bigint
+  assignee_id : bigint
+}
+
+entity "iot_device" as iot_device {
+  * id : bigint <<PK>>
+  --
+  device_sn : varchar <<UK>>
+  secret : char(64)
+  status : varchar
+}
+
+entity "attendance_record" as attendance_record {
+  * id : bigint <<PK>>
+  --
+  user_id / employee_no
+  device_sn : varchar
+  punch_time : datetime
+  message_id : varchar <<UK>>
+  work_date + status
+}
+
+entity "attendance_daily" as attendance_daily {
+  * id : bigint <<PK>>
+  --
+  user_id + work_date <<UK>>
+  status / late_minutes
+}
+
+entity "attendance_rule" as attendance_rule {
+  * id : bigint <<PK>>
+  --
+  work_start / work_end
+  late_grace_minutes
+}
+
+entity "makeup_request" as makeup_request {
+  * request_id : bigint <<PK>>
+  --
+  user_id / approver_id
+  status : pending/…
+  punch_date : date
+}
+
+entity "audit_log" as audit_log {
+  * audit_id : bigint <<PK>>
+  --
+  operator_id : bigint
+  module / action
+  result : varchar
+  trace_id : varchar
+}
+
+entity "worklog" as worklog {
+  * worklog_id : bigint <<PK>>
+  --
+  creator_id : bigint
+  content : text
+}
+
+entity "comment" as comment {
+  * comment_id : bigint <<PK>>
+  --
+  creator_id : bigint
+  related_type / related_id
+  reply_to : bigint
+}
+
+entity "sensitive_word" as sensitive_word {
+  * word_id : bigint <<PK>>
+  --
+  word : varchar <<UK>>
+  enabled : tinyint
+}
+
+entity "flyway_schema_history" as flyway_schema_history {
+  * installed_rank : int <<PK>>
+  --
+  version : varchar
+  success : tinyint
+}
+
+department ||--o{ user : 归属
+role ||--o{ user : 岗位
+role ||--o{ role_permission
+permission ||--o{ role_permission
+team ||--o{ team_member
+user ||--o{ team_member
+team ||--o{ schedule
+user ||--o{ schedule
+team ||--o{ kanban
+kanban ||--o{ kanban_column
+kanban_column ||--o{ kanban_item
+iot_device ||--o{ attendance_record : 上报
+user ||--o{ attendance_record
+user ||--o{ attendance_daily
+attendance_record ||--o{ attendance_daily : 按天汇总
+makeup_request ||--o| attendance_record : 审批通过写记录
+user ||--o{ audit_log : 操作留痕
+user ||--o{ worklog
+user ||--o{ comment
+schedule ||--o{ comment
+worklog ||--o{ comment
+
+note bottom
+  主键统一 bigint 自增；逻辑删除 deleted；无 FOREIGN KEY（见 ADR-02）。
+  唯一索引：attendance_record(message_id)、(employee_no, punch_time)、
+  user(username / employee_no)、attendance_daily(user_id, work_date)。
+end note
+@enduml

@@ -1,0 +1,45 @@
+@startuml 图8-组件图
+title 图 8　组件图：前端组件与后端模块依赖（41 个 Vue / 116 个 Java）
+
+package "前端（Vue 3 + Vite）" as FE {
+  component "layouts\nAdminLayout / UserLayout" as L
+  component "views（37 个页面）\nattendance / schedule / kanban\nteams / worklog / comment\nusers / audit / overview / user" as V
+  component "components（5 个）\n布局 · 图表 · 空状态" as C
+  component "router（31 路由）\nmeta.perms 逐页权限 + 守卫拦截" as R
+  component "stores（Pinia）\nauth：用户/权限/hasPerm\nui：偏好面板" as S
+  component "api（Axios 封装）\n统一 token 注入 · 统一错误分层" as API
+  component "utils\nnetErrors · 字典 · 格式化" as U
+  component "echarts / element-plus\n图表与组件库" as LIB
+}
+
+package "后端（Spring Boot 单体）" as BE {
+  component "controller（16 个）\n@PreAuthorize 34 处\n统一 ApiResponse" as CTL
+  component "service（业务域）\nattendance · rbac · kanban\nteam · schedule · worklog\ncomment · dashboard · audit" as SVC
+  component "mapper + entity\nMyBatis-Plus · 21 张表" as MAP
+  component "config / security\nJWT 过滤链 · SecurityConfig\n可观测性 · OpenAPI · 启动初始化" as CFG
+  component "横切组件\nAuditLogAspect（AOP）\nGlobalExceptionHandler\ntraceId + Micrometer" as X
+  component "定时任务\n@Scheduled 00:05 日汇总重算" as JOB
+}
+
+L --> V
+V --> C
+V --> API
+API --> R
+R --> S
+S --> API
+V --> U
+V --> LIB
+API --> CTL : HTTP /api/v1
+CTL --> SVC : 调用
+SVC --> MAP
+CTL ..> X : 切面
+SVC ..> X
+CFG ..> CTL : 过滤器链
+JOB --> SVC
+S ..> CTL : 携带 token
+
+note bottom
+  components 目录只有 5 个通用组件，业务页面直接写在 views 里——
+  这是单人项目刻意的取舍（少一层抽象，改起来更快）。
+end note
+@enduml

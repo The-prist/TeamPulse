@@ -1,0 +1,36 @@
+@startuml 图6-状态图
+title 图 6　状态图：补卡审批 与 设备状态
+
+state "（a）补卡申请状态机" as Makeup {
+  [*] --> 提交 : 员工提交补卡
+  提交 : status = pending
+  提交 --> 审批中 : 进入待办
+  审批中 : status = pending
+  审批中 --> 已通过 : approved = true
+  审批中 --> 已驳回 : approved = false
+  已通过 : status = approved
+  已驳回 : status = rejected
+  已通过 --> 回写打卡记录 : 事务内
+  回写打卡记录 : source = MANUAL\n刷新日汇总
+  回写打卡记录 --> [*]
+  已驳回 --> [*]
+  回写打卡记录 --> 审批中 : 重复审批 → 409
+}
+
+state "（b）设备状态" as Device {
+  [*] --> 未注册 : 出厂 / 新设备
+  未注册 --> 已注册 : 后台注册 → 下发密钥
+  已注册 : status = active\n离线标记 OFFLINE
+  已注册 --> 已禁用 : 停用
+  已禁用 : status = DISABLED
+  已禁用 --> 已注册 : 启用
+  已注册 --> 密钥轮换 : 轮换密钥（仅 active）
+  密钥轮换 : 旧密钥立即失效
+  密钥轮换 --> 已注册
+}
+
+note bottom of Device
+  在线状态由心跳更新（MQTT attendance/heartbeat，60s 一次）；
+  超过 180s 无心跳标记 OFFLINE。
+end note
+@enduml

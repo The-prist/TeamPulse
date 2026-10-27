@@ -3,7 +3,8 @@ package com.teampulse.module.auth.controller;
 import com.teampulse.common.api.ApiResponse;
 import com.teampulse.module.auth.dto.AuthDtos;
 import com.teampulse.module.auth.service.AuthService;
-import com.teampulse.module.user.entity.User;
+import com.teampulse.module.rbac.service.RbacService;
+import com.teampulse.security.LoginUser;
 import com.teampulse.security.SecurityUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -27,6 +29,7 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
+    private final RbacService rbacService;
 
     @Operation(summary = "登录", description = "返回 JWT，前端后续请求以 Authorization: Bearer <token> 携带")
     @PostMapping("/login")
@@ -41,9 +44,21 @@ public class AuthController {
         return ApiResponse.ok(Map.of("userId", userId));
     }
 
-    @Operation(summary = "当前登录人")
+    @Operation(summary = "当前登录人", description = "含角色、数据范围与权限点，前端刷新页面据此恢复菜单与按钮")
     @GetMapping("/me")
-    public ApiResponse<User> me() {
-        return ApiResponse.ok(authService.currentUser(SecurityUtils.currentUserId()));
+    public ApiResponse<AuthDtos.MeResponse> me() {
+        LoginUser me = SecurityUtils.currentUser();
+        Map<Long, String> deptNames = rbacService.departmentNameMap();
+        return ApiResponse.ok(AuthDtos.MeResponse.builder()
+                .userId(me.getUserId())
+                .username(me.getUsername())
+                .nickname(me.getNickname())
+                .role(me.getRole())
+                .roleName(rbacService.roleNameOf(me.getRole()))
+                .departmentId(me.getDepartmentId())
+                .departmentName(me.getDepartmentId() == null ? null : deptNames.get(me.getDepartmentId()))
+                .dataScope(me.getDataScope())
+                .permissions(me.getPermissions() == null ? List.of() : List.copyOf(me.getPermissions()))
+                .build());
     }
 }

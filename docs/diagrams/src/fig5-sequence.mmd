@@ -1,0 +1,20 @@
+sequenceDiagram
+  autonumber
+  participant DEV as ESP32
+  participant MQ as Mosquitto
+  participant BE as Backend
+  participant RDS as Redis
+  participant DB as MySQL
+  DEV->>MQ: publish checkin{sn,emp,time,nonce,sign}
+  MQ->>BE: 投递（订阅者 teampulse-backend-1）
+  BE->>DB: 按 deviceSn 取 secret
+  DB-->>BE: secret
+  BE->>BE: 校验 HMAC 与时钟漂移 ±300s
+  BE->>RDS: SET NX nonce EX 600
+  RDS-->>BE: 首次 = true
+  BE->>DB: INSERT attendance_record
+  DB-->>BE: 唯一键冲突 → 幂等返回 200
+  BE->>DB: 刷新 attendance_daily
+  BE->>BE: 指标 punch_total{result}
+  BE-->>MQ: Ack(id,status,workDate)
+  MQ-->>DEV: 上报结果

@@ -1,0 +1,55 @@
+erDiagram
+  department ||--o{ user : 归属
+  role ||--o{ user : 岗位
+  role ||--o{ role_permission : ""
+  permission ||--o{ role_permission : ""
+  team ||--o{ team_member : ""
+  user ||--o{ team_member : ""
+  team ||--o{ schedule : ""
+  team ||--o{ kanban : ""
+  kanban ||--o{ kanban_column : ""
+  kanban_column ||--o{ kanban_item : ""
+  iot_device ||--o{ attendance_record : 上报
+  user ||--o{ attendance_record : ""
+  user ||--o{ attendance_daily : ""
+  attendance_record ||--o{ attendance_daily : 按天汇总
+  makeup_request ||--o| attendance_record : 审批通过写记录
+  user ||--o{ audit_log : 操作留痕
+  user ||--o{ worklog : ""
+  user ||--o{ comment : ""
+  schedule ||--o{ comment : ""
+  worklog ||--o{ comment : ""
+
+  user {
+    bigint user_id PK
+    varchar username
+    varchar role
+    bigint department_id
+    varchar employee_no
+  }
+  attendance_record {
+    bigint id PK
+    varchar employee_no
+    datetime punch_time
+    varchar message_id UK
+    varchar status
+  }
+  attendance_daily {
+    bigint id PK
+    bigint user_id UK
+    date work_date UK
+    varchar status
+    int late_minutes
+  }
+  iot_device {
+    bigint id PK
+    varchar device_sn UK
+    char secret
+    varchar status
+  }
+  makeup_request {
+    bigint request_id PK
+    bigint user_id
+    varchar status
+    bigint approver_id
+  }

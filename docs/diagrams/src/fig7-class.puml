@@ -1,0 +1,126 @@
+@startuml 图7-类图
+title 图 7　类图：核心领域模型（节选，字段已简化）
+skinparam classAttributeIconSize 0
+
+package "组织与权限" {
+  class User {
+    - userId : Long
+    - username : String
+    - role : String
+    - departmentId : Long
+    - employeeNo : String
+  }
+  class Department {
+    - departmentId : Long
+    - parentId : Long
+    - deptCode : String
+    - leaderId : Long
+  }
+  class Role {
+    - roleKey : String
+    - roleName : String
+    - dataScope : ALL/DEPT/SELF
+  }
+  class Permission {
+    - permKey : String
+    - permName : String
+    - module : String
+  }
+  class RolePermission {
+    - roleKey : String
+    - permKey : String
+  }
+}
+
+package "协作域" {
+  class Team {
+    - teamId : Long
+    - teamName : String
+    - leaderId : Long
+  }
+  class TeamMember {
+    - teamId : Long
+    - userId : Long
+    - teamRole : leader/member
+  }
+  class Schedule {
+    - scheduleId : Long
+    - creatorId : Long
+    - teamId : Long
+    - startTime : Date
+  }
+  class Kanban {
+    - kanbanId : Long
+    - teamId : Long
+    - creatorId : Long
+  }
+  class Worklog {
+    - worklogId : Long
+    - creatorId : Long
+    - content : Text
+  }
+  class Comment {
+    - commentId : Long
+    - creatorId : Long
+    - relatedType : String
+    - relatedId : Long
+    - content : Text
+  }
+}
+
+package "考勤域" {
+  class IotDevice {
+    - deviceSn : String
+    - secret : String(64hex)
+    - status : active/DISABLED
+  }
+  class AttendanceRecord {
+    - recordId : Long
+    - userId : Long
+    - deviceSn : String
+    - punchTime : DateTime
+    - messageId : String(UK)
+  }
+  class AttendanceDaily {
+    - userId : Long
+    - workDate : Date
+    - status : NORMAL/LATE/…
+  }
+  class MakeupRequest {
+    - requestId : Long
+    - userId : Long
+    - status : pending/approved
+    - approverId : Long
+  }
+}
+
+package "审计" {
+  class AuditLog {
+    - auditId : Long
+    - operatorId : Long
+    - module : String
+    - action : String
+    - result : SUCCESS/FAILURE
+    - traceId : String
+  }
+}
+
+Department "1" --> "N" User : 归属
+User "N" --> "1" Role : 岗位
+Role "1" --> "N" RolePermission
+Permission "1" --> "N" RolePermission
+Team "1" --> "N" TeamMember : 成员
+TeamMember "N" --> "1" User
+IotDevice "1" --> "N" AttendanceRecord : 上报
+AttendanceRecord "N" --> "1" User
+AttendanceDaily "1" --> "N" AttendanceRecord : 汇总
+MakeupRequest "N" --> "1" AttendanceRecord : 审批通过→写记录
+AuditLog ..> User : 操作留痕
+Schedule "1" --> "N" Comment : 评论
+Worklog "1" --> "N" Comment : 评论
+
+note bottom
+  全库无物理外键，上面所有连线都是「逻辑关联」（见数据库设计说明书第 6 章）。
+  唯一索引承担业务约束：attendance_record(message_id)、(employee_no, punch_time)。
+end note
+@enduml

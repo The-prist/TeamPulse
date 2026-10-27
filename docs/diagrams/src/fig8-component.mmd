@@ -1,0 +1,23 @@
+flowchart LR
+  subgraph FE[前端 Vue 3]
+    L[layouts] --> V[views 37 页]
+    V --> C[components 5 个]
+    V --> API[api Axios 封装]
+    API --> R[router 31 路由 · meta.perms]
+    R --> S[stores Pinia]
+    V --> U[utils]
+    V --> LIB[echarts / element-plus]
+  end
+  subgraph BE[后端 Spring Boot]
+    CTL[controller 16 个 · 34 处 @PreAuthorize]
+    SVC[service 业务域 9 个]
+    MAP[mapper + entity · 21 表]
+    CFG[config / security]
+    X[横切组件 AOP · 异常 · traceId]
+    JOB[定时任务 00:05]
+    CTL --> SVC --> MAP
+    CTL -.-> X
+    CFG -.-> CTL
+    JOB --> SVC
+  end
+  API -->|HTTP /api/v1| CTL

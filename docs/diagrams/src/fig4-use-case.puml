@@ -1,0 +1,65 @@
+@startuml 图4-用例图
+title 图 4　用例图（6 个角色 × 15 个用例）
+left to right direction
+skinparam packageStyle rectangle
+
+actor "系统管理员\nsysadmin" as A1
+actor "人事\nhr" as A2
+actor "部门经理\nmanager" as A3
+actor "团队负责人\nleader" as A4
+actor "普通员工\nemployee" as A5
+actor "审计专员\nauditor" as A6
+
+rectangle "TeamPulse 协作 + 物联考勤平台" {
+  usecase "登录 / 个人信息" as UC01
+  usecase "用户与角色管理" as UC02
+  usecase "设备注册与密钥轮换" as UC03
+  usecase "考勤规则配置" as UC04
+  usecase "补卡审批" as UC05
+  usecase "公司考勤概览" as UC06
+  usecase "部门成员打卡查询" as UC07
+  usecase "团队日程管理" as UC08
+  usecase "评论与敏感词" as UC09
+  usecase "团队与成员维护" as UC10
+  usecase "看板协作" as UC11
+  usecase "日程 / 日志查看" as UC12
+  usecase "我的打卡与补卡申请" as UC13
+  usecase "我的日程 / 日志 / 看板" as UC14
+  usecase "审计日志查询（全公司只读）" as UC15
+}
+
+A1 --> UC01
+A1 --> UC02
+A1 --> UC03
+A1 --> UC05
+A1 --> UC07
+A1 --> UC09
+
+A2 --> UC01
+A2 --> UC04
+A2 --> UC05
+A2 --> UC06
+
+A3 --> UC01
+A3 --> UC07
+A3 --> UC08
+A3 --> UC09
+A3 --> UC05
+
+A4 --> UC01
+A4 --> UC10
+A4 --> UC11
+A4 --> UC12
+
+A5 --> UC01
+A5 --> UC13
+A5 --> UC14
+
+A6 --> UC01
+A6 --> UC15
+
+note bottom
+  「补卡审批」的操作为 人事 / 部门经理 / 系统管理员；普通员工只能提交补卡申请。
+  审计专员的全部用例均为只读。
+end note
+@enduml

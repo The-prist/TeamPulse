@@ -68,4 +68,29 @@ public final class AuthDtos {
         /** 权限点集合，前端据此渲染菜单与按钮 */
         private List<String> permissions;
     }
+
+    /**
+     * 当前登录用户信息（GET /auth/me）。
+     *
+     * <p>为什么要带 permissions / dataScope / roleName：前端刷新页面时会调这个接口
+     * 恢复登录态。如果这里不返回权限点，前端只能沿用 localStorage 里那份旧数据；
+     * 一旦那份数据是 RBAC 改造前的（没有 permissions 字段或为空数组），
+     * 菜单和按钮会全部消失，现象像「超管没有权限」，实际是前端拿不到权限。
+     */
+    @Data
+    @Builder
+    public static class MeResponse {
+        private Long userId;
+        private String username;
+        private String nickname;
+        private String role;
+        private String roleName;
+        private String employeeNo;
+        private Long departmentId;
+        private String departmentName;
+        /** 数据范围：ALL / DEPT / SELF */
+        private String dataScope;
+        /** 权限点集合（每次请求由 JwtAuthenticationFilter 按角色重新加载，改了权限即时生效） */
+        private List<String> permissions;
+    }
 }

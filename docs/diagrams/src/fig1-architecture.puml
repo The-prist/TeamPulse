@@ -1,0 +1,68 @@
+@startuml 图1-系统架构图
+title 图 1　系统架构图（三层 + 六业务域 + 可观测）
+
+package "终端" as EP {
+  component "ESP32 打卡机\nUART 读卡 · HMAC 签名" as ESP32
+  component "设备模拟器 / curl\n联调与回归用" as SIM
+}
+
+package "接入层" as GW {
+  component "Nginx\n静态托管 · 反向代理 · 同源" as NGX
+  component "Mosquitto\nMQTT 1883 · 密码认证" as MQ
+  component "HTTP 兜底 /iot/v1\n同一套验签" as HTTPF
+}
+
+package "应用层（Spring Boot 单体）" as APP {
+  component "安全过滤器链\nJWT + @PreAuthorize + 数据范围" as SEC
+
+  package "业务域" {
+    component "协作域\n用户 / 团队 / 日程\n看板 / 日志 / 评论" as D1
+    component "考勤域\n设备 / 规则 / 打卡\n补卡审批" as D2
+    component "权限域\n角色 / 权限\n数据范围" as D3
+    component "审计域\nAOP 切面\n审计查询" as D4
+    component "概览统计\n仪表盘 / 公司概览" as D5
+    component "横切能力\ntraceId · 指标\n统一异常" as D6
+  }
+
+  component "MyBatis-Plus 持久层" as DAO
+  component "定时结算 00:05\n日汇总重算" as CRON
+}
+
+package "数据层" as DATA {
+  database "MySQL 8.0\n21 表 · utf8mb4" as MYSQL
+  database "Redis 7\nnonce 防重放" as REDIS
+}
+
+package "可观测（可选）" as OBS {
+  component "Prometheus\n抓取 /actuator/prometheus" as PROM
+  component "Grafana\n7 个面板 · 只绑回环" as GRAF
+}
+
+ESP32 --> NGX : HTTP 80
+ESP32 --> MQ : MQTT 1883
+SIM --> HTTPF : HTTP
+NGX --> SEC : 静态 + /api
+MQ --> D2 : attendance/checkin
+HTTPF --> D2
+SEC --> D1
+SEC --> D2
+SEC --> D3
+SEC --> D4
+SEC --> D5
+D1 --> DAO
+D2 --> DAO
+D3 --> DAO
+D4 --> DAO
+D5 --> DAO
+DAO --> MYSQL : JDBC
+D1 --> REDIS : SET NX
+CRON --> DAO
+PROM ..> APP : 指标
+APP ..> PROM
+GRAF --> PROM
+
+note bottom of APP
+  单体部署：一个 JVM 承载 6 个业务域；
+  模块化分包（module.*）保留将来按域拆分的边界。
+end note
+@enduml

@@ -1,0 +1,20 @@
+stateDiagram-v2
+  direction LR
+  state "补卡申请" as MK {
+    [*] --> pending : 员工提交
+    pending --> pending : 进入待办
+    pending --> approved : approved=true
+    pending --> rejected : approved=false
+    approved --> MANUAL : 事务内回写打卡记录
+    MANUAL --> [*]
+    rejected --> [*]
+    MANUAL --> pending : 重复审批 409
+  }
+  state "设备" as DEV {
+    [*] --> 未注册
+    未注册 --> active : 后台注册下发密钥
+    active --> DISABLED : 停用
+    DISABLED --> active : 启用
+    active --> 密钥轮换 : 轮换密钥
+    密钥轮换 --> active
+  }
