@@ -3,6 +3,7 @@ import { chromium } from 'playwright-core'
 import fs from 'node:fs'
 
 const BASE = process.env.BASE || 'http://www.team-pulse.site'
+const THEME = process.env.THEME || 'dark'
 const ROLES = [
   { user: 'admin', pass: 'adminpassword', panel: 'admin' },
   { user: 'lisi', pass: '123456', panel: 'user' },
@@ -41,7 +42,11 @@ const auditJs = () => {
     let node = el
     let acc = null
     while (node && node !== document.documentElement) {
-      const c = parse(getComputedStyle(node).backgroundColor)
+      const st = getComputedStyle(node)
+      // 渐变/图片背景没法用 backgroundColor 表达（例如品牌块、统计卡），
+      // 继续往上找会把它的浅色父级当成背景，得出 1.02:1 这种假阳性。遇到就不判。
+      if (st.backgroundImage && st.backgroundImage !== 'none') return null
+      const c = parse(st.backgroundColor)
       if (c && c.a > 0) {
         acc = acc ? blend(acc, c) : c
         if (acc.a >= 0.999) return acc
@@ -70,6 +75,7 @@ const auditJs = () => {
     const fg = parse(st.color)
     if (!fg) continue
     const bg = bgOf(el)
+    if (!bg) continue // 背景含渐变，无法可靠计算
     const r = ratio(blend(fg, bg), bg)
     const fontSize = parseFloat(st.fontSize)
     const bold = Number(st.fontWeight) >= 600
@@ -99,7 +105,7 @@ const run = async () => {
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } })
     const page = await ctx.newPage()
     // 预置暗色，避免登录页/入口页先渲染亮色
-    await page.addInitScript(() => localStorage.setItem('tp_theme', 'dark'))
+    await page.addInitScript((t) => localStorage.setItem('tp_theme', t), THEME)
     await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' })
     await page.locator('input').first().fill(r.user)
     await page.locator('input[type="password"]').first().fill(r.pass)
@@ -136,12 +142,12 @@ const run = async () => {
     if (it.ratio < e.ratio) e.ratio = it.ratio
   }
   const list = [...agg.values()].sort((a, b) => a.ratio - b.ratio)
-  console.log(`暗色模式低对比文字：${all.length} 处，去重后 ${list.length} 类\n`)
+  console.log(`${THEME === 'dark' ? '暗色' : '亮色'}模式低对比文字：${all.length} 处，去重后 ${list.length} 类\n`)
   for (const e of list.slice(0, 40)) {
     console.log(`  ${String(e.ratio).padEnd(5)} (需 ${e.need}) ${e.sel.slice(0, 58).padEnd(58)} ${e.color} on ${e.bg}`)
     console.log(`        「${e.text}」  页面: ${[...e.pages].slice(0, 3).join(', ')}`)
   }
-  fs.writeFileSync('E:\\codestorge\\.run-logs\\contrast-dark.json', JSON.stringify(list, null, 2))
-  console.log('\n明细已写入 .run-logs/contrast-dark.json')
+  fs.writeFileSync(`E:\\codestorge\\.run-logs\\contrast-${THEME}.json`, JSON.stringify(list, null, 2))
+  console.log(`\n明细已写入 .run-logs/contrast-${THEME}.json`)
 }
 await run()
