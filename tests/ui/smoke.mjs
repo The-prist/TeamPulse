@@ -60,6 +60,22 @@ const USER_PAGES = [
   ['个人信息', '/u/profile'],
 ]
 
+// 详情页：必须用真实 id，否则路由 404 也会被判失败。
+// 这些页面最容易出「接口 200 但渲染炸」的问题。
+const ADMIN_DETAILS = [
+  ['日程详情', 'schedule', 'scheduleId', '/schedule/'],
+  ['日志详情', 'worklog', 'worklogId', '/worklogs/'],
+  ['看板详情', 'kanban', 'kanbanId', '/kanban/'],
+  // 管理端没有 /teams/:id（团队管理用抽屉展开成员），团队详情只在用户工作台有
+]
+
+const USER_DETAILS = [
+  ['我的日程详情', 'schedule', 'scheduleId', '/u/schedules/'],
+  ['我的日志详情', 'worklog', 'worklogId', '/u/worklogs/'],
+  ['我的看板详情', 'kanban/my', 'kanbanId', '/u/kanban/'],
+  ['我的团队详情', 'team/my', 'teamId', '/u/teams/'],
+]
+
 const IGNORE_PATTERNS = [
   /favicon/i,
   /Failed to load resource: the server responded with a status of 40[13]/i, // 403/401 属预期（无权限）
@@ -123,6 +139,36 @@ const run = async () => {
       const ok = !hasGlobalError && !blank && fatal.length === 0
       log(r.role, name, ok ? 'ok' : 'fail',
         hasGlobalError ? '显示「页面出现异常」' : blank ? '页面空白' : (fatal[0] ?? ''))
+      errors.length = 0
+    }
+
+    // ---- 详情页抽查：用真实 id 打开，抓渲染期错误
+    const details = r.panel === 'admin' ? ADMIN_DETAILS : USER_DETAILS
+    for (const [name, apiPath, idField, urlPrefix] of details) {
+      let id = null
+      try {
+        const tok = await page.evaluate(() => localStorage.getItem('tp_token'))
+        const res = await ctx.request.get(`${BASE}/api/v1/${apiPath}`, {
+          headers: { Authorization: `Bearer ${tok}` },
+          failOnStatusCode: false,
+        })
+        if (res.ok()) {
+          const j = await res.json()
+          const d = j?.data
+          const rows = Array.isArray(d) ? d : (d?.records || [])
+          id = rows?.[0]?.[idField]
+        }
+      } catch { /* 拿不到 id 就跳过 */ }
+      if (!id) { log(r.role, name, 'skip', '列表为空或取不到 id'); continue }
+
+      await page.goto(`${BASE}${urlPrefix}${id}`, { waitUntil: 'domcontentloaded' })
+      await page.waitForTimeout(900)
+      const fatal = errors.filter((e) => e.startsWith('[pageerror]') || e.includes('页面出现异常'))
+      const bodyText = await page.locator('body').innerText().catch(() => '')
+      const hasGlobalError = bodyText.includes('页面出现异常')
+      const okPage = !hasGlobalError && fatal.length === 0 && bodyText.replace(/\s/g, '').length > 20
+      log(r.role, name, okPage ? 'ok' : 'fail',
+        hasGlobalError ? '显示「页面出现异常」' : (fatal[0] ?? ''))
       errors.length = 0
     }
 

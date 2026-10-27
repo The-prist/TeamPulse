@@ -20,6 +20,11 @@ SRC = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 # 常被误用的短名（出现在 computed / 模板里但忘了声明）
 WATCH = ["detail", "schedule", "kanban", "row", "form"]
 
+# 同一类「运行期才炸」的错误：用了 computed/ref/watch 等 Vue API 却没从 vue 导入。
+# 2026-10-28 日程详情页第二次白屏就是 referenceError: computed is not defined。
+VUE_APIS = ["computed", "ref", "reactive", "watch", "watchEffect", "onMounted", "onUnmounted",
+            "nextTick", "provide", "inject", "defineAsyncComponent", "toRefs"]
+
 
 def strip_comments(code: str) -> str:
     """去掉 // 行注释与 /* */ 块注释，避免注释里提到的名字被误判。"""
@@ -36,6 +41,15 @@ def main() -> int:
         if "<script" not in raw:
             continue
         script = strip_comments(raw.split("<script", 1)[1])
+        # 2) 漏导入 Vue API
+        imp = re.search(r"import\s*\{([^}]*)\}\s*from\s*['\"]vue['\"]", script)
+        imported = set()
+        if imp:
+            imported = {x.strip().split(" as ")[-1].strip() for x in imp.group(1).split(",") if x.strip()}
+        for api in VUE_APIS:
+            if re.search(rf"(?<![\w.]){api}\s*\(", script) and api not in imported:
+                issues.append((os.path.basename(path), api + "（未从 vue 导入）", 0))
+
         for name in WATCH:
             used = re.search(rf"\b{name}\.value\b", script)
             if not used:

@@ -53,7 +53,7 @@
 <script setup>
 import { useAuthStore } from '@/stores/auth'
 const auth = useAuthStore()
-import { reactive, ref, onMounted } from 'vue'
+import { computed, reactive, ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { scheduleApi } from '@/api'
 import { scheduleStatusText, priorityText } from '@/utils/dict'
