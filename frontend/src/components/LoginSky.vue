@@ -18,7 +18,6 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import {
-  azimuthToX,
   beijingDateAtHour,
   beijingHour,
   cloudAlpha,
@@ -112,41 +111,54 @@ function makeStar() {
   }
 }
 
-function makeCloud() {
-  // 云的尺度分三档，避免所有云一样大
-  const tier = Math.random()
-  const base = tier < 0.34 ? rand(22, 40) : tier < 0.74 ? rand(44, 78) : rand(84, 138)
+/**
+ * 动漫式积云：用较多小圆堆出轮廓
+ *   - 沿基线的"底排"圆：底边大致齐平，形成云的平底
+ *   - 中排更大，顶排 2~3 个"鼓包"，做出顶部起伏
+ *   - 每朵云尺度不同（22~150），小的做远景点缀
+ */
+function makeCloud(tierHint) {
+  const tier = tierHint ?? Math.random()
+  const base = tier < 0.3 ? rand(18, 32) : tier < 0.68 ? rand(38, 74) : rand(86, 150)
   const hx = rand(0, width)
-  // 主要分布在上半部与两侧，避开被中间卡片挡住的位置
-  const hy = rand(height * 0.05, height * 0.46)
+  // 小云偏低（远景点缀），大云偏中上
+  const hy = tier < 0.3 ? rand(height * 0.45, height * 0.8) : rand(height * 0.06, height * 0.5)
 
-  const n = tier < 0.34 ? 4 : tier < 0.74 ? 5 : 7
   const puffs = []
-  for (let i = 0; i < n; i++) {
-    const t = i / (n - 1) - 0.5 // -0.5 .. 0.5
-    // 中间大、两侧小：这是积云最典型的轮廓
-    const k = 0.45 + 0.55 * Math.cos(t * Math.PI * 0.92)
-    const r = base * k
-    puffs.push({
-      dx: t * base * 2.05 + rand(-2, 2),
-      // 圆心高于基线，底边大致齐平
-      dy: -r * 0.5 + rand(-2, 2),
-      r,
-      // 每团云自己的透明度略有差别，叠起来才有体积感
-      a: rand(0.82, 1),
-    })
+  const cols = tier < 0.3 ? 4 : tier < 0.68 ? 6 : 9
+
+  // ① 底排
+  for (let i = 0; i < cols; i++) {
+    const t = cols === 1 ? 0 : i / (cols - 1) - 0.5
+    const k = 0.5 + 0.5 * Math.cos(t * Math.PI * 0.95) // 中间大两边小
+    const r = base * (0.42 + 0.34 * k)
+    puffs.push({ dx: t * base * 2.0 + rand(-2, 2), dy: rand(-2, 2), r })
+  }
+  // ② 中排：错开半个间距，堆出体积
+  for (let i = 0; i < cols - 1; i++) {
+    const t = (i + 0.5) / (cols - 1) - 0.5
+    const k = 0.5 + 0.5 * Math.cos(t * Math.PI * 0.9)
+    const r = base * (0.5 + 0.4 * k)
+    puffs.push({ dx: t * base * 1.7 + rand(-3, 3), dy: -base * 0.42 + rand(-3, 3), r })
+  }
+  // ③ 顶排鼓包
+  const tops = tier < 0.3 ? 1 : tier < 0.68 ? 2 : 3
+  for (let i = 0; i < tops; i++) {
+    const t = rand(-0.28, 0.28)
+    const r = base * rand(0.36, 0.6)
+    puffs.push({ dx: t * base * 1.5, dy: -base * rand(0.7, 0.95), r })
   }
 
   return {
     hx,
     hy,
-    rx: rand(70, 200),
+    rx: rand(70, 210),
     ry: rand(24, 70),
     x: hx,
     y: hy,
     vx: rand(-0.02, 0.02),
     vy: rand(-0.008, 0.008),
-    alpha: rand(0.62, 0.88),
+    alpha: rand(0.86, 1.0),
     puffs,
   }
 }
@@ -157,8 +169,13 @@ function buildStars() {
 }
 
 function buildClouds() {
-  const n = Math.max(4, Math.min(7, Math.round(width / 340)))
-  clouds = Array.from({ length: n }, makeCloud)
+  // 大云 + 远景点缀的小云，比例接近参考图
+  const big = Math.max(3, Math.min(5, Math.round(width / 420)))
+  const small = Math.max(2, Math.min(5, Math.round(width / 420)))
+  clouds = [
+    ...Array.from({ length: big }, () => makeCloud(rand(0.5, 0.95))),
+    ...Array.from({ length: small }, () => makeCloud(rand(0, 0.28))),
+  ]
 }
 
 /* ------------------------------------------------------------------ 太阳与天色 */
@@ -167,6 +184,35 @@ function currentDate() {
   return previewHour.value === null
     ? new Date()
     : beijingDateAtHour(previewHour.value)
+}
+
+/**
+ * 天体统一圆弧
+ *
+ * 需求：太阳与月亮走同一条圆弧。所以两者的屏幕位置都用同一组参数、同一个公式：
+ *   纵向上，高度角映射到 0~90°，0° 落在地平线、42° 及以上就是弧顶；
+ *   横向上，方位角决定偏向（东=左 / 西=右），并用「离正南多远」控制横向偏移：
+ *     正南（180°）在中线，正东/正西（90°/270°）到两侧最远处。
+ * 这样两颗天体的轨迹是同一个椭圆弧，只是因为各自的高度角/方位角不同而取不同位置。
+ */
+const ARC = {
+  inset: 0.06, // 左右留白，避免贴边被裁
+  horizon: 0.94, // 地平线的纵向位置
+  height: 0.9, // 弧的高度占比
+  apexAlt: 42, // 高度角达到它就算弧顶
+}
+
+function arcPos(altitude, azimuth) {
+  const u = Math.max(0, Math.min(1, altitude / ARC.apexAlt))
+  const ang = (u * Math.PI) / 2
+  const lateral = Math.max(0, Math.min(1, Math.abs(azimuth - 180) / 90))
+  const side = azimuth >= 180 ? 1 : -1
+  const halfW = 0.5 - ARC.inset
+  const xNorm = 0.5 + side * halfW * Math.cos(ang) * lateral
+  // 幂次 0.62：把中等高度角抬得更高一些，避免 9~15 点的太阳落在中间卡片后面；
+  // 低高度角（清早/傍晚）横向本来就在左右留白，纵向仍贴近地平线
+  const yNorm = ARC.horizon - ARC.height * Math.pow(Math.sin(ang), 0.62)
+  return { x: xNorm * width, y: yNorm * height }
 }
 
 function refreshSky() {
@@ -191,13 +237,11 @@ function refreshSky() {
   starsVisible = starAlpha(altitude)
   cloudsVisible = cloudAlpha(altitude)
 
-  // 屏幕坐标：方位角 → 横向（东在左、西在右，按"面朝南方看天空"的视角），高度角 → 纵向
-  // 横向内缩 6%：真实方位角会跑到 0%/100%，直接映射的话太阳月亮会被屏幕边缘切掉
-  sunX = (0.06 + 0.88 * azimuthToX(azimuth, false)) * width
-  // 45° 以上按天顶处理：这样正午（本季节约 37°）时太阳能升到卡片上方，
-  // 不会被中间的登录卡片挡住；低太阳时方位角偏东西，本来就落在左右留白里
-  const altNorm = clamp01(altitude / 42)
-  sunY = height * 0.94 - Math.pow(altNorm, 0.75) * height * 0.86
+  // 与月亮共用同一条圆弧
+  const sunPos = arcPos(altitude, azimuth)
+  sunX = sunPos.x
+  sunY = sunPos.y
+  const altNorm = clamp01(altitude / ARC.apexAlt)
   sunR = Math.max(26, Math.min(56, width * 0.032)) * (1 + (1 - altNorm) * 0.18)
 
   // ---- 月亮：位置、月相、可见度
@@ -207,8 +251,9 @@ function refreshSky() {
   const illum = moonIllumination(date)
   moonFrac = illum.fraction
   moonPhase = illum.phase
-  moonX = (0.06 + 0.88 * azimuthToX(moonAz, false)) * width
-  moonY = height * 0.94 - Math.pow(clamp01(moonAlt / 42), 0.75) * height * 0.86
+  const moonPos = arcPos(moonAlt, moonAz)
+  moonX = moonPos.x
+  moonY = moonPos.y
   moonR = sunR * 0.92
   // 高度角 < -1.5° 时落到地平线下；白天月亮仍然可见，只是被天空压暗
   const dayFactor = 1 - 0.55 * clamp01((altitude + 4) / 14)
@@ -528,57 +573,104 @@ function drawStars() {
   }
 }
 
+/**
+ * 画云：单一轮廓 + 内部渐变（这是参考图的关键）
+ *   ① 把所有小圆合成一条路径，一次性填充"上白下淡蓝"的竖向渐变
+ *   ② clip 到轮廓内，叠底部蓝色阴影 → 天空反光/明暗层次
+ *   ③ 每个大鼓包底边再补一小块阴影，做出"一朵朵"的分离感
+ *   ④ 顶部几处高光，让云顶更亮
+ */
 function drawClouds() {
   if (cloudsVisible <= 0.01) return
   const warm = clamp01((12 - sunAlt) / 14)
-  const warmColor = warm > 0.3 ? `rgba(255, 214, 170, ${warm * 0.35})` : null
+  const warmA = warm > 0.3 ? warm * 0.3 : 0
 
   for (const c of clouds) {
     const a = c.alpha * cloudsVisible
-    if (a <= 0.01) continue
+    if (a <= 0.02) continue
 
+    // ---- 轮廓 + 包围盒
+    const path = new Path2D()
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
     for (const p of c.puffs) {
       const px = c.x + p.dx
       const py = c.y + p.dy
-      const pa = a * p.a
-      const core = p.r * 0.9
+      path.moveTo(px + p.r, py)
+      path.arc(px, py, p.r, 0, Math.PI * 2)
+      minX = Math.min(minX, px - p.r)
+      maxX = Math.max(maxX, px + p.r)
+      minY = Math.min(minY, py - p.r)
+      maxY = Math.max(maxY, py + p.r)
+    }
+    const w = maxX - minX
+    const h = maxY - minY
 
-      // ① 实心云泡：这是"有的地方大有的地方小"的关键——每团都是独立可辨的圆
-      ctx.globalAlpha = pa
-      ctx.fillStyle = '#ffffff'
+    // ---- ① 主体：上白 → 下淡蓝
+    const gBase = ctx.createLinearGradient(0, minY, 0, maxY)
+    gBase.addColorStop(0, `rgba(255,255,255,${a})`)
+    gBase.addColorStop(0.5, `rgba(250,253,255,${a * 0.98})`)
+    gBase.addColorStop(0.78, `rgba(214,232,250,${a * 0.96})`)
+    gBase.addColorStop(1, `rgba(172,203,232,${a * 0.94})`)
+    ctx.fillStyle = gBase
+    ctx.fill(path)
+
+    // ---- ② 内部：底部蓝色阴影 + 顶部反光
+    ctx.save()
+    ctx.clip(path)
+
+    const gShadow = ctx.createLinearGradient(0, minY + h * 0.52, 0, maxY)
+    gShadow.addColorStop(0, 'rgba(150,182,220,0)')
+    gShadow.addColorStop(1, `rgba(126,166,210,${0.5 * a})`)
+    ctx.fillStyle = gShadow
+    ctx.fillRect(minX, minY, w, h)
+
+    const gSky = ctx.createLinearGradient(0, minY, 0, minY + h * 0.55)
+    gSky.addColorStop(0, `rgba(255,255,255,${0.5 * a})`)
+    gSky.addColorStop(1, 'rgba(255,255,255,0)')
+    ctx.fillStyle = gSky
+    ctx.fillRect(minX, minY, w, h * 0.55)
+
+    // ③ 每个鼓包底边的小阴影（只挑大的，控制开销）
+    const bigPuffs = [...c.puffs].sort((p, q) => q.r - p.r).slice(0, 7)
+    for (const p of bigPuffs) {
+      const px = c.x + p.dx
+      const py = c.y + p.dy + p.r * 0.55
+      const g = ctx.createRadialGradient(px, py, 0, px, py, p.r * 0.95)
+      g.addColorStop(0, `rgba(140,176,214,${0.2 * a})`)
+      g.addColorStop(1, 'rgba(140,176,214,0)')
+      ctx.fillStyle = g
       ctx.beginPath()
-      ctx.arc(px, py, core, 0, Math.PI * 2)
+      ctx.arc(px, py, p.r * 0.95, 0, Math.PI * 2)
       ctx.fill()
-      ctx.globalAlpha = 1
+    }
 
-      // ② 柔边：只在最外圈淡出，轮廓仍然清晰
-      const g = ctx.createRadialGradient(px, py, core * 0.78, px, py, p.r)
-      g.addColorStop(0, `rgba(255,255,255,${pa})`)
+    // ④ 顶排高光
+    const topPuffs = [...c.puffs].sort((p, q) => p.dy - q.dy).slice(0, 3)
+    for (const p of topPuffs) {
+      const px = c.x + p.dx - p.r * 0.15
+      const py = c.y + p.dy - p.r * 0.3
+      const g = ctx.createRadialGradient(px, py, 0, px, py, p.r * 0.8)
+      g.addColorStop(0, `rgba(255,255,255,${0.55 * a})`)
       g.addColorStop(1, 'rgba(255,255,255,0)')
       ctx.fillStyle = g
       ctx.beginPath()
-      ctx.arc(px, py, p.r, 0, Math.PI * 2)
+      ctx.arc(px, py, p.r * 0.8, 0, Math.PI * 2)
       ctx.fill()
-
-      // ③ 底部一点冷色，给云体积感（不整体加暗，保持通透）
-      const gs = ctx.createRadialGradient(px, py + core * 0.5, 0, px, py + core * 0.1, core)
-      gs.addColorStop(0, `rgba(190, 210, 230, ${pa * 0.35})`)
-      gs.addColorStop(1, 'rgba(190, 210, 230, 0)')
-      ctx.fillStyle = gs
-      ctx.beginPath()
-      ctx.arc(px, py + core * 0.2, core, 0, Math.PI * 2)
-      ctx.fill()
-
-      if (warmColor) {
-        const gt = ctx.createRadialGradient(px, py + core * 0.6, 0, px, py, p.r)
-        gt.addColorStop(0, warmColor)
-        gt.addColorStop(1, 'rgba(255,214,170,0)')
-        ctx.fillStyle = gt
-        ctx.beginPath()
-        ctx.arc(px, py, p.r, 0, Math.PI * 2)
-        ctx.fill()
-      }
     }
+
+    // 低太阳时的暖色反光
+    if (warmA > 0) {
+      const gWarm = ctx.createLinearGradient(0, minY, 0, maxY)
+      gWarm.addColorStop(0, `rgba(255,214,170,0)`)
+      gWarm.addColorStop(1, `rgba(255,214,170,${warmA * a})`)
+      ctx.fillStyle = gWarm
+      ctx.fillRect(minX, minY, w, h)
+    }
+
+    ctx.restore()
   }
 }
 
