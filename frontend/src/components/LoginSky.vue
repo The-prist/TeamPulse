@@ -382,7 +382,7 @@ function stepWeather(dt) {
     p.x += (p.vx + (p.sway ? Math.sin(p.sway + p.y * 0.02) * 0.5 : 0)) * k
     if (p.y > hitY || p.x < -40) {
       // 频率跟强度走：雨越大水花越多（0.02 → 0.06）
-      const splashRate = 0.05 * (skyStore.intensity || 1)
+      const splashRate = 0.08 * (skyStore.intensity || 1)
       if (hasAccum && p.y > hitY && Math.random() < splashRate) spawnSplash(p.x, hitY)
       const fresh = makeParticle(bucket, false)
       Object.assign(p, fresh)
@@ -456,12 +456,12 @@ function spawnSplash(x, y) {
     x,
     y,
     t: 0,
-    life: rand(0.8, 1.35),
+    life: rand(0.42, 0.58),
     r: rand(2.2, 4.4),
     drops: Math.round(rand(1, 2)),
     seed: Math.random() * Math.PI * 2,
   })
-  if (splashes.length > 10) splashes.shift()
+  if (splashes.length > 16) splashes.shift()
 }
 
 function stepSplashes(dt) {
@@ -472,7 +472,10 @@ function stepSplashes(dt) {
 
 function drawAccumulation() {
   accumPercent.value = Math.round(accum * 100)
-  if (!octx || accum <= 0.002) return
+  if (!octx) return
+  // 每帧清空叠加层：否则水/雪会逐帧往上叠（越叠越厚），切走天气也擦不掉
+  octx.clearRect(0, 0, owidth, oheight)
+  if (accum <= 0.002) return
   const kind = accumKind
   if (!kind) return
 
@@ -528,15 +531,15 @@ function drawAccumulation() {
     for (const sp of splashes) {
       const k = sp.t / sp.life
       const rr = sp.r + k * 20
-      octx.globalAlpha = Math.pow(Math.max(0, 1 - k), 1.6) * 0.6
+      octx.globalAlpha = Math.pow(Math.max(0, 1 - k), 1.5) * 0.62
       octx.strokeStyle = 'rgba(240, 250, 255, 0.95)'
       octx.lineWidth = 1.3
       octx.beginPath()
       octx.ellipse(sp.x, sp.y, rr, rr * 0.34, 0, 0, Math.PI * 2)
       octx.stroke()
 
-      if (k < 0.5) {
-        octx.globalAlpha = Math.pow(Math.max(0, 1 - k / 0.5), 1.4) * 0.75
+      if (k < 0.45) {
+        octx.globalAlpha = Math.pow(Math.max(0, 1 - k / 0.45), 1.3) * 0.7
         octx.fillStyle = 'rgba(244, 252, 255, 0.95)'
         for (let i = 0; i < sp.drops; i++) {
           const ang = sp.seed + (i / sp.drops) * Math.PI * 2
@@ -1439,6 +1442,14 @@ onMounted(() => {
     },
     get accum() { return { kind: accumKind, value: Number(accum.toFixed(3)), percent: Math.round(accum * 100) } },
     get splashCount() { return splashes.length },
+    /** 叠加层上还有多少非透明像素（验证切天气后画面是否真的被清掉） */
+    overlayPixels() {
+      if (!octx) return -1
+      const { data } = octx.getImageData(0, 0, owidth, oheight)
+      let n = 0
+      for (let i = 3; i < data.length; i += 4) if (data[i] > 8) n++
+      return n
+    },
     setAccum(v) {
       accum = Math.max(0, Math.min(1, Number(v) || 0))
       accumKind = currentAccumKind()
