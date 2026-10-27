@@ -155,7 +155,7 @@ async function handleLogin() {
   padding: 32px 20px;
   /* 夜间：纯色深蓝；白天由 .day-sky 渐变层盖上来（opacity 过渡） */
   background: #0b1c38;
-  transition: background-color 900ms ease;
+  transition: background-color 1150ms ease;
   overflow: hidden;
 }
 
@@ -165,7 +165,7 @@ async function handleLogin() {
   z-index: 0;
   opacity: 1;
   background: linear-gradient(180deg, #4aa3ea 0%, #7fc3f0 38%, #b9ddf7 72%, #d9edfb 100%);
-  transition: opacity 900ms ease;
+  transition: opacity 1150ms ease;
 }
 
 /* 暗色（夜间）：白天渐变层淡出，露出纯色深蓝底 */
