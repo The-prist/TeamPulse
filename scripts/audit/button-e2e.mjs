@@ -201,11 +201,12 @@ const main = async () => {
   const mkDevice = await call('POST', '/api/v1/devices', A, {
     deviceSn: 'E2E-SN-' + T, deviceName: 'E2E夹具设备', location: 'x', remark: 'x',
   })
-  created.deviceId = mkDevice.data?.id ?? mkDevice.data?.deviceId
+  created.deviceId = mkDevice.data?.device?.id ?? mkDevice.data?.id ?? mkDevice.data?.deviceId
   const mkW = await call('POST', '/api/v1/sensitive-word', A, { word: 'E2E词' + T, replacement: '**' })
   created.wordId = mkW.data?.wordId ?? mkW.data?.id
+  const pastDay = new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 10)
   const mkMakeup = await call('POST', '/api/v1/makeup', A, {
-    punchTime: '2026-12-01 09:00:00', reason: 'E2E夹具补卡',
+    punchTime: `${pastDay} 09:00:00`, reason: 'E2E夹具补卡',
   })
   const pend = await call('GET', '/api/v1/makeup/pending?page=1&size=50', A)
   const pendRows = pend.data?.records || pend.data || []
