@@ -12,7 +12,7 @@
           <div class="header-actions">
             <el-input v-model="keyword" placeholder="搜索团队名称/描述" clearable style="width: 260px" @keyup.enter.native="onSearch" />
             <el-button type="primary" @click="onSearch" style="margin-left: 8px">搜索</el-button>
-            <el-button type="success" @click="openCreate" style="margin-left: 8px">新增团队</el-button>
+            <el-button type="success" @click="openCreate" style="margin-left: 8px" v-if="auth.hasPerm('team:manage')">新增团队</el-button>
           </div>
         </div>
       </template>
@@ -43,8 +43,8 @@
         </el-table-column>
         <el-table-column label="操作" width="160">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
-            <el-popconfirm title="确认删除该团队吗？" @confirm="remove(row)">
+            <el-button link type="primary" @click="openEdit(row)" v-if="auth.hasPerm('team:manage')">编辑</el-button>
+            <el-popconfirm title="确认删除该团队吗？" @confirm="remove(row)" v-if="auth.hasPerm('team:manage')">
               <template #reference>
                 <el-button link type="danger">删除</el-button>
               </template>
@@ -53,7 +53,7 @@
         </el-table-column>
         <template #empty>
           <el-empty description="暂无数据">
-            <el-button type="primary" @click="openCreate">去创建</el-button>
+            <el-button type="primary" @click="openCreate" v-if="auth.hasPerm('team:manage')">去创建</el-button>
           </el-empty>
         </template>
       </el-table>
@@ -70,7 +70,7 @@
         <el-tab-pane label="成员管理" name="members" v-if="form.teamId">
           <div class="member-management">
             <div class="member-toolbar">
-              <el-button type="primary" size="small" @click="openAddMember">添加成员</el-button>
+              <el-button type="primary" size="small" @click="openAddMember" v-if="auth.hasPerm('team:manage')">添加成员</el-button>
             </div>
             <el-table :data="members" size="small" style="width: 100%; margin-top: 16px" v-loading="membersLoading">
               <template #empty>
@@ -90,8 +90,8 @@
               <el-table-column prop="joinTime" label="加入时间" width="180" />
               <el-table-column label="操作" width="150">
                 <template #default="{ row }">
-                  <el-button size="small" @click="editMemberRole(row)">修改角色</el-button>
-                  <el-popconfirm title="确认移除该成员吗？" @confirm="removeMember(row)">
+                  <el-button size="small" @click="editMemberRole(row)" v-if="auth.hasPerm('team:manage')">修改角色</el-button>
+                  <el-popconfirm title="确认移除该成员吗？" @confirm="removeMember(row)" v-if="auth.hasPerm('team:manage')">
                     <template #reference>
                       <el-button size="small" type="danger">移除</el-button>
                     </template>

@@ -67,7 +67,7 @@
         <el-form-item class="filter-actions">
           <el-button type="primary" @click="reload">查询</el-button>
           <el-button @click="resetQuery">重置</el-button>
-          <el-button type="success" @click="openCreateDialog">新增日程</el-button>
+          <el-button type="success" @click="openCreateDialog" v-if="auth.hasPerm('schedule:manage')">新增日程</el-button>
           <el-button @click="exportCSV('schedules.csv', ['scheduleId','title','status','priority'])">导出CSV</el-button>
         </el-form-item>
       </el-form>
@@ -264,6 +264,8 @@
 </template>
 
 <script setup>
+import { useAuthStore } from '@/stores/auth'
+const auth = useAuthStore()
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { scheduleApi, userApi } from '@/api'

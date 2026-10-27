@@ -92,6 +92,17 @@ ADRS = [
      "方法名 isAdmin() 容易误导，读代码时容易再次用错。",
      "isAdmin() 保留但补了注释说明其语义；授权一律用 hasPermission(Perms.X)；"
      "接口断言新增 5b 组做回归（人事删他人评论必须 403）。"),
+    ("ADR-10", "读接口的权限粒度：哪些必须有注解，哪些刻意开放",
+     "盘点时发现部分读接口（GET /schedule、/worklog、/kanban 等）没有 @PreAuthorize，"
+     "任何登录用户都能调用；而 UI 层已经按权限隐藏入口。",
+     "已给「不会打挂任何角色」的读接口补注解：GET /attendance/rule → attendance:rule、"
+     "GET /kanban 与 /kanban/{id}/detail → kanban:view、GET /worklog、/{id}、/statistics → worklog:view；"
+     "PUT /devices/{id} 由 device:view 提升为 device:manage（读权限不该能改数据）。",
+     "GET /schedule 刻意保持开放：人事没有 schedule:view，但用户工作台的「我的日程」用的就是它，"
+     "加注解会把人事自己的页面打挂。",
+     "残留风险：人事（data_scope=ALL）理论上能通过 API 读到全公司日程。"
+     "若要彻底收敛，应把数据范围从「角色级」改为「权限级」，属下一阶段工作；"
+     "scripts/audit/role-matrix.mjs 会把这类情况列为 ⓘ 提示。")
 ]
 
 
@@ -104,7 +115,7 @@ def main() -> int:
         "TeamPulse 详细设计与架构决策记录",
         "团队协作与物联网考勤平台 · 实现细节与取舍依据",
         ["覆盖：认证、打卡、审批、数据范围、审计、可观测、定时结算",
-         "包含 9 条 ADR（Architecture Decision Record）",
+         "包含 10 条 ADR（Architecture Decision Record）",
          "所有类名与行数取自源码，伪代码对应真实实现顺序",
          "文档版本 v1.0"],
     )

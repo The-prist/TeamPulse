@@ -46,7 +46,7 @@
           <el-button @click="handleReset">重置</el-button>
         </el-form-item>
         <el-form-item class="right-item">
-          <el-button type="success" plain @click="openManualDialog">手工补卡</el-button>
+          <el-button type="success" plain @click="openManualDialog" v-if="auth.hasPerm('attendance:manage')">手工补卡</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -172,6 +172,8 @@
 </template>
 
 <script setup>
+import { useAuthStore } from '@/stores/auth'
+const auth = useAuthStore()
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { attendanceApi } from '@/api'

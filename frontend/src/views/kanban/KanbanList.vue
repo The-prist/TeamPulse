@@ -14,7 +14,7 @@
               <el-radio-button label="all">所有看板</el-radio-button>
               <el-radio-button label="user">我的看板</el-radio-button>
             </el-radio-group>
-            <el-button type="primary" @click="openCreateDialog">
+            <el-button type="primary" @click="openCreateDialog" v-if="auth.hasPerm('kanban:manage')">
               <el-icon><Plus /></el-icon> 新增看板
             </el-button>
           </div>
@@ -116,6 +116,8 @@
 </template>
 
 <script setup>
+import { useAuthStore } from '@/stores/auth'
+const auth = useAuthStore()
 import { onMounted, ref, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { kanbanApi, teamApi, userApi } from '@/api'

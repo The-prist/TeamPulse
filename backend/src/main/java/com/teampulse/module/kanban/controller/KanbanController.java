@@ -12,14 +12,23 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -45,6 +54,7 @@ public class KanbanController {
     private final KanbanService kanbanService;
 
     @Operation(summary = "分页查询看板", description = "teamId / keyword 可选，size 上限 200")
+    @PreAuthorize("hasAuthority('kanban:view')")
     @GetMapping
     public ApiResponse<PageResult<Kanban>> page(@RequestParam(required = false) Long teamId,
                                                 @RequestParam(required = false) String keyword,
@@ -60,6 +70,7 @@ public class KanbanController {
     }
 
     @Operation(summary = "看板详情", description = "一次返回 kanban / columns / cards 三段数据")
+    @PreAuthorize("hasAuthority('kanban:view')")
     @GetMapping("/{kanbanId}/detail")
     public ApiResponse<Map<String, Object>> detail(@PathVariable Long kanbanId) {
         return ApiResponse.ok(kanbanService.detail(kanbanId));

@@ -50,7 +50,7 @@
         </el-form-item>
 
         <el-form-item>
-          <el-button type="primary" :loading="saving" @click="handleSave">保存规则</el-button>
+          <el-button type="primary" :loading="saving" @click="handleSave" v-if="auth.hasPerm('attendance:rule')">保存规则</el-button>
           <el-button @click="load">重新加载</el-button>
         </el-form-item>
       </el-form>
@@ -79,6 +79,8 @@
 </template>
 
 <script setup>
+import { useAuthStore } from '@/stores/auth'
+const auth = useAuthStore()
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { attendanceApi } from '@/api'

@@ -111,6 +111,7 @@ public class AttendanceController {
     }
 
     @Operation(summary = "查询当前考勤规则")
+    @PreAuthorize("hasAuthority('attendance:rule')")
     @GetMapping("/rule")
     public ApiResponse<AttendanceRule> getRule() {
         return ApiResponse.ok(ruleService.currentRule());

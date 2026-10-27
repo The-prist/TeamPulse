@@ -13,7 +13,7 @@
              <el-button type="primary" size="small" @click="showAddItemDialog = true">
                <el-icon><Plus /></el-icon> 添加卡片
              </el-button>
-             <el-button type="danger" size="small" @click="deleteKanban">
+             <el-button type="danger" size="small" v-if="canDeleteKanban" @click="deleteKanban">
                <el-icon><Delete /></el-icon> 删除看板
              </el-button>
            </div>
@@ -103,6 +103,8 @@
 </template>
 
 <script setup>
+import { useAuthStore } from '@/stores/auth'
+const auth = useAuthStore()
 import { onMounted, reactive, ref, computed } from 'vue'
 import { filterSensitiveWords } from '@/utils/sensitive'
 import { useRoute, useRouter } from 'vue-router'
@@ -257,6 +259,14 @@ const loadKanbanDetail = async () => {
 onMounted(() => {
   loadKanbanDetail()
 })
+/** 与后端一致：看板创建者 或 拥有 kanban:manage 才能删除看板 */
+const canDeleteKanban = computed(() => {
+  if (auth.hasPerm('kanban:manage')) return true
+  const me = auth.user?.userId
+  const creator = detail.value?.creatorId
+  return creator != null && me != null && creator === me
+})
+
 </script>
 
 <style scoped>

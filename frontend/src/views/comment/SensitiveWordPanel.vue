@@ -25,7 +25,7 @@
             @clear="handleSearch"
           />
           <el-button @click="handleSearch">查询</el-button>
-          <el-button type="primary" @click="openCreate">新增敏感词</el-button>
+          <el-button type="primary" @click="openCreate" v-if="auth.hasPerm('sensitive:manage')">新增敏感词</el-button>
         </div>
       </div>
     </template>
@@ -71,11 +71,11 @@
       </el-table-column>
       <el-table-column label="操作" width="200" fixed="right">
         <template #default="{ row }">
-          <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
+          <el-button link type="primary" @click="openEdit(row)" v-if="auth.hasPerm('sensitive:manage')">编辑</el-button>
           <el-button link :type="row.status === 'active' ? 'warning' : 'success'" @click="toggleStatus(row)">
             {{ row.status === 'active' ? '停用' : '启用' }}
           </el-button>
-          <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+          <el-button link type="danger" @click="handleDelete(row)" v-if="auth.hasPerm('sensitive:manage')">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -112,6 +112,8 @@
 </template>
 
 <script setup>
+import { useAuthStore } from '@/stores/auth'
+const auth = useAuthStore()
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { sensitiveWordApi } from '@/api'

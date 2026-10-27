@@ -11,14 +11,23 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
@@ -43,6 +52,7 @@ public class WorklogController {
             description = "creatorId / teamId / keyword / from / to / timeFrom / timeTo / order 均可选；"
                     + "from、to 为 yyyy-MM-dd（按日志日期）；timeFrom、timeTo 为 HH:mm（按提交时间）；"
                     + "order 默认 asc；size 上限 200")
+    @PreAuthorize("hasAuthority('worklog:view')")
     @GetMapping
     public ApiResponse<PageResult<WorklogDtos.WorklogVO>> page(
             @RequestParam(required = false) Long creatorId,
@@ -60,6 +70,7 @@ public class WorklogController {
     }
 
     @Operation(summary = "工作日志详情", description = "含作者名、团队名、关联日程标题")
+    @PreAuthorize("hasAuthority('worklog:view')")
     @GetMapping("/{id}")
     public ApiResponse<WorklogDtos.WorklogVO> detail(@PathVariable Long id) {
         return ApiResponse.ok(worklogService.detail(id));
@@ -89,6 +100,7 @@ public class WorklogController {
 
     @Operation(summary = "工作日志统计",
             description = "条数、覆盖天数、平均字数；creatorId 缺省为当前登录人，日期缺省为近 30 天")
+    @PreAuthorize("hasAuthority('worklog:view')")
     @GetMapping("/statistics")
     public ApiResponse<Map<String, Object>> statistics(
             @RequestParam(required = false) Long creatorId,

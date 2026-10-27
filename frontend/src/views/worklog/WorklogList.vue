@@ -148,12 +148,12 @@
           <el-table-column label="提交时间" width="150">
             <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="152" fixed="right">
+          <el-table-column label="操作" width="152" fixed="right" v-if="hasAnyAction">
             <template #default="{ row }">
               <div class="table-actions">
-                <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
+                <el-button link type="primary" @click="openEdit(row)" v-if="canEditRow(row)">编辑</el-button>
                 <el-button link type="success" @click="$router.push(`/worklogs/${row.worklogId}`)">详情</el-button>
-                <el-popconfirm title="确认删除该日志吗？" @confirm="remove(row)">
+                <el-popconfirm title="确认删除该日志吗？" @confirm="remove(row)" v-if="canEditRow(row)">
                   <template #reference>
                     <el-button link type="danger">删除</el-button>
                   </template>
@@ -427,6 +427,16 @@ async function submit() {
     ElMessage.error('保存失败：' + (e.message || ''))
   }
 }
+
+/** 与后端一致：日志作者本人 或 拥有 worklog:manage 才能编辑/删除 */
+function canEditRow(row) {
+  if (auth.hasPerm('worklog:manage')) return true
+  const me = auth.user?.userId
+  return !!row && row.creatorId != null && me != null && row.creatorId === me
+}
+
+/** 本页当前用户至少对某行有操作权时才显示操作列，避免空列 */
+const hasAnyAction = computed(() => auth.hasPerm('worklog:manage') || rows.value.some((r) => canEditRow(r)))
 
 async function remove(row) {
   try {

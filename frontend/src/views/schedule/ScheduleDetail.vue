@@ -31,7 +31,7 @@
             <el-button size="small" plain :loading="updatingStatus" @click="setStatus('doing')" :type="d.status==='doing' ? 'primary' : 'info'">进行中</el-button>
             <el-button size="small" plain :loading="updatingStatus" @click="setStatus('done')" :type="d.status==='done' ? 'success' : 'info'">已完成</el-button>
             <el-button size="small" plain :loading="updatingStatus" @click="setStatus('canceled')" :type="d.status==='canceled' ? 'warning' : 'info'">作废</el-button>
-            <el-popconfirm title="确认删除该日程吗？" @confirm="deleteSchedule">
+            <el-popconfirm v-if="canDelete" title="确认删除该日程吗？" @confirm="deleteSchedule">
               <template #reference>
                 <el-button size="small" type="danger" plain :loading="deleting">删除</el-button>
               </template>
@@ -51,6 +51,8 @@
 </template>
 
 <script setup>
+import { useAuthStore } from '@/stores/auth'
+const auth = useAuthStore()
 import { reactive, ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { scheduleApi } from '@/api'
@@ -133,6 +135,14 @@ async function deleteSchedule() {
 onMounted(async () => {
   await loadScheduleDetail()
 })
+/** 与后端一致：日程创建人 或 拥有 schedule:manage 才能删除 */
+const canDelete = computed(() => {
+  if (auth.hasPerm('schedule:manage')) return true
+  const me = auth.user?.userId
+  const creator = detail.value?.creatorId ?? schedule.value?.creatorId
+  return creator != null && me != null && creator === me
+})
+
 </script>
 
 <style scoped>

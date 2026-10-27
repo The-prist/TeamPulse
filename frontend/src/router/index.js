@@ -29,25 +29,25 @@ const routes = [
     children: [
       { path: '', redirect: '/dashboard' },
       { path: 'dashboard', name: 'dashboard', component: () => import('@/views/Dashboard.vue'), meta: { title: '仪表盘' } },
-      { path: 'overview/company', name: 'companyOverview', component: () => import('@/views/overview/CompanyOverview.vue'), meta: { title: '公司概览' } },
+      { path: 'overview/company', name: 'companyOverview', component: () => import('@/views/overview/CompanyOverview.vue'), meta: { title: '公司概览', perms: ['dashboard:company'], } },
 
       // ---- 物联网考勤 ----
-      { path: 'attendance/dashboard', name: 'attendanceDashboard', component: () => import('@/views/attendance/AttendanceDashboard.vue'), meta: { title: '考勤看板' } },
-      { path: 'attendance/records', name: 'attendanceRecords', component: () => import('@/views/attendance/AttendanceRecords.vue'), meta: { title: '打卡记录', hasList: true } },
-      { path: 'attendance/devices', name: 'attendanceDevices', component: () => import('@/views/attendance/DeviceList.vue'), meta: { title: '打卡设备', hasList: true } },
-      { path: 'attendance/rule', name: 'attendanceRule', component: () => import('@/views/attendance/AttendanceRule.vue'), meta: { title: '考勤规则' } },
-  { path: 'attendance/approvals', name: 'attendanceApprovals', component: () => import('@/views/attendance/MakeupApproval.vue'), meta: { title: '补卡审批', hasList: true } },
+      { path: 'attendance/dashboard', name: 'attendanceDashboard', component: () => import('@/views/attendance/AttendanceDashboard.vue'), meta: { title: '考勤看板', perms: ['attendance:view'], } },
+      { path: 'attendance/records', name: 'attendanceRecords', component: () => import('@/views/attendance/AttendanceRecords.vue'), meta: { title: '打卡记录', hasList: true, perms: ['attendance:view'], } },
+      { path: 'attendance/devices', name: 'attendanceDevices', component: () => import('@/views/attendance/DeviceList.vue'), meta: { title: '打卡设备', hasList: true, perms: ['device:view'], } },
+      { path: 'attendance/rule', name: 'attendanceRule', component: () => import('@/views/attendance/AttendanceRule.vue'), meta: { title: '考勤规则', perms: ['attendance:rule'], } },
+  { path: 'attendance/approvals', name: 'attendanceApprovals', component: () => import('@/views/attendance/MakeupApproval.vue'), meta: { title: '补卡审批', hasList: true, perms: ['attendance:approve'], } },
 
-      { path: 'kanban', name: 'kanbanList', component: () => import('@/views/kanban/KanbanList.vue'), meta: { title: '看板管理', hasList: true } },
-      { path: 'kanban/:id', name: 'kanbanDetail', component: () => import('@/views/kanban/KanbanDetail.vue'), meta: { title: '看板详情', parent: '/kanban' } },
-      { path: 'schedule', name: 'scheduleList', component: () => import('@/views/schedule/ScheduleList.vue'), meta: { title: '日程管理', hasList: true } },
-      { path: 'schedule/:id', name: 'scheduleDetail', component: () => import('@/views/schedule/ScheduleDetail.vue'), meta: { title: '日程详情', parent: '/schedule' } },
-      { path: 'comments', name: 'commentList', component: () => import('@/views/comment/CommentList.vue'), meta: { title: '评论管理', hasList: true } },
-      { path: 'worklogs', name: 'worklogList', component: () => import('@/views/worklog/WorklogList.vue'), meta: { title: '日志管理', hasList: true } },
-      { path: 'worklogs/:id', name: 'worklogDetail', component: () => import('@/views/worklog/WorklogDetail.vue'), meta: { title: '日志详情', parent: '/worklogs' } },
-      { path: 'audit', name: 'auditLogs', component: () => import('@/views/audit/AuditLogList.vue'), meta: { title: '审计日志', hasList: true } },
-  { path: 'users', name: 'userList', component: () => import('@/views/users/UserList.vue'), meta: { title: '用户管理', hasList: true } },
-      { path: 'teams', name: 'teamList', component: () => import('@/views/teams/TeamList.vue'), meta: { title: '团队管理', hasList: true } },
+      { path: 'kanban', name: 'kanbanList', component: () => import('@/views/kanban/KanbanList.vue'), meta: { title: '看板管理', hasList: true, perms: ['kanban:view'], } },
+      { path: 'kanban/:id', name: 'kanbanDetail', component: () => import('@/views/kanban/KanbanDetail.vue'), meta: { title: '看板详情', parent: '/kanban', perms: ['kanban:view'], } },
+      { path: 'schedule', name: 'scheduleList', component: () => import('@/views/schedule/ScheduleList.vue'), meta: { title: '日程管理', hasList: true, perms: ['schedule:view'], } },
+      { path: 'schedule/:id', name: 'scheduleDetail', component: () => import('@/views/schedule/ScheduleDetail.vue'), meta: { title: '日程详情', parent: '/schedule', perms: ['schedule:view'], } },
+      { path: 'comments', name: 'commentList', component: () => import('@/views/comment/CommentList.vue'), meta: { title: '评论管理', hasList: true, perms: ['comment:view'], } },
+      { path: 'worklogs', name: 'worklogList', component: () => import('@/views/worklog/WorklogList.vue'), meta: { title: '日志管理', hasList: true, perms: ['worklog:view'], } },
+      { path: 'worklogs/:id', name: 'worklogDetail', component: () => import('@/views/worklog/WorklogDetail.vue'), meta: { title: '日志详情', parent: '/worklogs', perms: ['worklog:view'], } },
+      { path: 'audit', name: 'auditLogs', component: () => import('@/views/audit/AuditLogList.vue'), meta: { title: '审计日志', hasList: true, perms: ['audit:view'], } },
+  { path: 'users', name: 'userList', component: () => import('@/views/users/UserList.vue'), meta: { title: '用户管理', hasList: true, perms: ['user:view'], } },
+      { path: 'teams', name: 'teamList', component: () => import('@/views/teams/TeamList.vue'), meta: { title: '团队管理', hasList: true, perms: ['team:view'], } },
     ],
   },
   {
@@ -126,6 +126,11 @@ router.beforeEach((to) => {
     }
     if (to.path === '/login') {
       return { path: preferred === 'user' ? '/u/home' : '/dashboard' }
+    }
+    // 逐页权限校验：没有该页所需权限时，不进页面（否则页面会刷出一堆 403）
+    const need = to.meta?.perms
+    if (Array.isArray(need) && need.length && !need.some((p) => perms.includes(p))) {
+      return { path: preferred === 'user' ? '/u/home' : '/dashboard', query: { denied: to.path } }
     }
     return true
   }

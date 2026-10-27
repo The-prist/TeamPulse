@@ -66,6 +66,8 @@ public class DeviceController {
     }
 
     @Operation(summary = "更新设备信息")
+    // 类上是 device:view（只读），但改设备信息是写操作，方法级覆盖为 device:manage
+    @PreAuthorize("hasAuthority('device:manage')")
     @PutMapping("/{id}")
     @Audited(module = "device", action = "device.update", detail = "修改设备信息")
     public ApiResponse<Void> update(@PathVariable Long id,

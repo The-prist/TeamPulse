@@ -38,8 +38,8 @@
             <el-table-column label="操作" width="150" fixed="right">
               <template #default="{ row }">
                 <div class="table-actions">
-                  <el-button link type="success" @click="openReview(row, true)">通过</el-button>
-                  <el-button link type="danger" @click="openReview(row, false)">驳回</el-button>
+                  <el-button link type="success" @click="openReview(row, true)" v-if="auth.hasPerm('attendance:approve')">通过</el-button>
+                  <el-button link type="danger" @click="openReview(row, false)" v-if="auth.hasPerm('attendance:approve')">驳回</el-button>
                 </div>
               </template>
             </el-table-column>

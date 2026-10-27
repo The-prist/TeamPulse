@@ -25,7 +25,7 @@
         <div class="actions">
           <el-tag type="success" effect="plain">在线 {{ statistics.online || 0 }}</el-tag>
           <el-tag effect="plain">共 {{ statistics.total || 0 }} 台</el-tag>
-          <el-button type="primary" plain @click="openCreate">注册设备</el-button>
+          <el-button type="primary" plain @click="openCreate" v-if="auth.hasPerm('device:manage')">注册设备</el-button>
         </div>
       </div>
     </el-card>
@@ -59,9 +59,9 @@
         </el-table-column>
         <el-table-column label="操作" width="210" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
-            <el-button link type="warning" @click="handleRotate(row)">重置密钥</el-button>
-            <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+            <el-button v-if="auth.hasPerm('device:manage')" link type="primary" @click="openEdit(row)">编辑</el-button>
+            <el-button link type="warning" @click="handleRotate(row)" v-if="auth.hasPerm('device:manage')">重置密钥</el-button>
+            <el-button link type="danger" @click="handleDelete(row)" v-if="auth.hasPerm('device:manage')">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -131,6 +131,8 @@
 </template>
 
 <script setup>
+import { useAuthStore } from '@/stores/auth'
+const auth = useAuthStore()
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { deviceApi } from '@/api'

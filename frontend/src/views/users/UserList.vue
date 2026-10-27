@@ -12,7 +12,7 @@
           <div class="header-actions">
             <el-input v-model="keyword" placeholder="搜索用户名/邮箱/昵称" clearable style="width: 260px" @keyup.enter.native="onSearch" />
             <el-button type="primary" @click="onSearch" style="margin-left: 8px">搜索</el-button>
-            <el-button type="success" @click="openCreate" style="margin-left: 8px">新增用户</el-button>
+            <el-button type="success" @click="openCreate" style="margin-left: 8px" v-if="auth.hasPerm('user:manage')">新增用户</el-button>
           </div>
         </div>
       </template>
@@ -48,10 +48,10 @@
             <el-tag :type="row.status==='active' ? 'success' : 'warning'">{{ userStatusText(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200">
+        <el-table-column label="操作" width="200" v-if="auth.hasPerm('user:manage')">
           <template #default="{ row }">
-      <el-button size="small" @click="openEdit(row)" :disabled="loading">编辑</el-button>
-      <el-popconfirm title="确认删除该用户吗？" @confirm="remove(row)">
+      <el-button size="small" @click="openEdit(row)" :disabled="loading" v-if="auth.hasPerm('user:manage')">编辑</el-button>
+      <el-popconfirm title="确认删除该用户吗？" @confirm="remove(row)" v-if="auth.hasPerm('user:manage')">
               <template #reference>
         <el-button size="small" type="danger" :disabled="loading">删除</el-button>
               </template>
@@ -108,6 +108,8 @@
 </template>
 
 <script setup>
+import { useAuthStore } from '@/stores/auth'
+const auth = useAuthStore()
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { departmentApi, roleApi, userApi } from '@/api'
