@@ -147,6 +147,22 @@ let particlesBucket = ''
 /** 雷电闪光强度 0~1 */
 let flash = 0
 let flashTimer = 0
+
+/* ---- 积水 / 积雪 ---- */
+const overlayRef = ref(null)
+let octx = null
+let owidth = 0
+let oheight = 0
+/** 登录卡片在天空坐标系里的位置（用于「水涨到卡片下沿」「卡片上方积雪」） */
+let cardBox = { left: 0, top: 0, right: 0, bottom: 0, width: 0, radius: 18 }
+/** 堆积进度 0~1 */
+let accum = 0
+/** 当前堆积类型：rain / snow / '' */
+let accumKind = ''
+/** 飞溅的水花 */
+let splashes = []
+/** 水面波纹相位 */
+let waterPhase = 0
 /** 长云带的滚动偏移（0 ~ bandW 循环） */
 let bandOffset = 0
 const rand = (a, b) => a + Math.random() * (b - a)
@@ -358,10 +374,14 @@ function stepWeather(dt) {
   if (key !== particlesBucket) rebuildParticles(bucket)
 
   const k = Math.min(dt, 32) / 16.67
+  // 有积水/积雪时，雨滴打在表面上就消失并溅起水花
+  const hasAccum = accumKind === 'rain' && accum > 0.02
+  const hitY = hasAccum ? accumSurfaceY() : height + 30
   for (const p of particles) {
     p.y += p.vy * k
     p.x += (p.vx + (p.sway ? Math.sin(p.sway + p.y * 0.02) * 0.5 : 0)) * k
-    if (p.y > height + 30 || p.x < -40) {
+    if (p.y > hitY || p.x < -40) {
+      if (hasAccum && p.y > hitY && Math.random() < 0.16) spawnSplash(p.x, hitY)
       const fresh = makeParticle(bucket, false)
       Object.assign(p, fresh)
     }
@@ -378,6 +398,255 @@ function stepWeather(dt) {
   } else {
     flash = 0
   }
+}
+
+/** 量一下登录卡片的位置（换成别的布局也照样能用） */
+function measureCard() {
+  const canvas = canvasRef.value
+  const panel = document.querySelector('.login-panel')
+  if (!canvas || !panel) return
+  const a = canvas.getBoundingClientRect()
+  const b = panel.getBoundingClientRect()
+  cardBox = {
+    left: b.left - a.left,
+    top: b.top - a.top,
+    right: b.right - a.left,
+    bottom: b.bottom - a.top,
+    width: b.width,
+    radius: 18,
+  }
+}
+
+/** 涨满所需秒数：小雨 5 分钟、中雨 3 分钟、大雨 1 分半（雪同理） */
+function accumSeconds() {
+  return { 1: 300, 2: 180, 3: 90 }[skyStore.intensity] || 180
+}
+
+/** 堆积类型：雨/雷暴 → 水；雪 → 雪；其它 → 空（慢慢排干/融化） */
+function currentAccumKind() {
+  const b = currentWeatherBucket
+  if (b === 'rain' || b === 'thunder') return 'rain'
+  if (b === 'snow') return 'snow'
+  return ''
+}
+
+/** 水面/雪面的 y 坐标（底部为 oheight） */
+function accumSurfaceY() {
+  const maxH = Math.max(8, oheight - cardBox.bottom)
+  return oheight - maxH * accum
+}
+
+function stepAccumulation(dt) {
+  const kind = currentAccumKind()
+  if (kind !== accumKind) {
+    // 雨雪互换时清空，避免"雨突然变成雪堆"这种不合理画面
+    if (accumKind && kind && kind !== accumKind) accum = 0
+    accumKind = kind
+    splashes = []
+  }
+  if (!kind) {
+    // 停止降水后水会排掉/雪会化掉，用 3 倍的慢速退去
+    accum = Math.max(0, accum - dt / (accumSeconds() * 3000))
+    return
+  }
+  accum = Math.min(1, accum + dt / (accumSeconds() * 1000))
+}
+
+function spawnSplash(x, y) {
+  splashes.push({
+    x,
+    y,
+    t: 0,
+    life: rand(0.42, 0.7),
+    r: rand(2.2, 4.4),
+    drops: Math.round(rand(1, 2)),
+    seed: Math.random() * Math.PI * 2,
+  })
+  if (splashes.length > 14) splashes.shift()
+}
+
+function stepSplashes(dt) {
+  const s = dt / 1000
+  for (const sp of splashes) sp.t += s
+  splashes = splashes.filter((sp) => sp.t < sp.life)
+}
+
+function drawAccumulation() {
+  accumPercent.value = Math.round(accum * 100)
+  if (!octx || accum <= 0.002) return
+  const kind = accumKind
+  if (!kind) return
+
+  const surfaceY = accumSurfaceY()
+  octx.save()
+
+  if (kind === 'rain') {
+    // ---- 水：自上而下的渐变 + 轻微波纹 + 与卡片下沿的弯月面
+    waterPhase += 0.02
+    const g = octx.createLinearGradient(0, surfaceY, 0, oheight)
+    g.addColorStop(0, 'rgba(163, 209, 238, 0.45)')
+    g.addColorStop(0.45, 'rgba(126, 178, 216, 0.55)')
+    g.addColorStop(1, 'rgba(88, 138, 184, 0.68)')
+    octx.fillStyle = g
+    octx.beginPath()
+    octx.moveTo(0, surfaceY)
+    for (let x = 0; x <= owidth; x += 8) {
+      const wave = Math.sin(x / 70 + waterPhase) * 1.4 + Math.sin(x / 23 - waterPhase * 1.7) * 0.6
+      octx.lineTo(x, surfaceY + wave)
+    }
+    octx.lineTo(owidth, oheight)
+    octx.lineTo(0, oheight)
+    octx.closePath()
+    octx.fill()
+
+    // 水面高光
+    octx.strokeStyle = 'rgba(255, 255, 255, 0.4)'
+    octx.lineWidth = 1.2
+    octx.beginPath()
+    for (let x = 0; x <= owidth; x += 8) {
+      const wave = Math.sin(x / 70 + waterPhase) * 1.4
+      if (x === 0) octx.moveTo(x, surfaceY + wave)
+      else octx.lineTo(x, surfaceY + wave)
+    }
+    octx.stroke()
+
+    // 与卡片下沿接触的弯月面：两侧圆角高光 + 中间轻微下凹
+    if (accum > 0.35 && cardBox.width > 0) {
+      const left = cardBox.left
+      const right = cardBox.right
+      const midY = surfaceY + 2.4
+      octx.beginPath()
+      octx.moveTo(left, surfaceY - 2)
+      octx.quadraticCurveTo(left + 14, midY, left + 34, midY)
+      octx.lineTo(right - 34, midY)
+      octx.quadraticCurveTo(right - 14, midY, right, surfaceY - 2)
+      octx.strokeStyle = 'rgba(255, 255, 255, 0.45)'
+      octx.lineWidth = 1.6
+      octx.stroke()
+    }
+
+    // 水花：涟漪 + 水珠
+    for (const sp of splashes) {
+      const k = sp.t / sp.life
+      const rr = sp.r + k * 22
+      octx.globalAlpha = Math.max(0, 1 - k) * 0.55
+      octx.strokeStyle = 'rgba(240, 250, 255, 0.95)'
+      octx.lineWidth = 1.3
+      octx.beginPath()
+      octx.ellipse(sp.x, sp.y, rr, rr * 0.34, 0, 0, Math.PI * 2)
+      octx.stroke()
+
+      if (k < 0.55) {
+        octx.globalAlpha = Math.max(0, 1 - k / 0.55) * 0.7
+        octx.fillStyle = 'rgba(244, 252, 255, 0.95)'
+        for (let i = 0; i < sp.drops; i++) {
+          const ang = sp.seed + (i / sp.drops) * Math.PI * 2
+          const dx = Math.cos(ang) * (5 + k * 16)
+          const dy = -Math.sin(ang) * (8 + k * 20) + k * k * 26
+          octx.beginPath()
+          octx.arc(sp.x + dx, sp.y + dy, Math.max(0.5, 1.05 * (1 - k)), 0, Math.PI * 2)
+          octx.fill()
+        }
+      }
+    }
+    octx.globalAlpha = 1
+  } else {
+    // ---- 雪：底部积雪（上表面平整、两端圆肩）+ 卡片上方积雪
+    const snowTop = (x) => {
+      // 中间略高、两端压低，整体接近水平 —— 雪堆比水面平整
+      const t = x / Math.max(1, owidth)
+      const dome = Math.sin(Math.PI * t) * 4 * accum
+      const bump = Math.sin(x / 58) * 1.2 + Math.sin(x / 130 + 1.4) * 1.6
+      return surfaceY - dome - bump
+    }
+
+    const g = octx.createLinearGradient(0, surfaceY, 0, oheight)
+    g.addColorStop(0, 'rgba(255, 255, 255, 0.97)')
+    g.addColorStop(0.5, 'rgba(243, 249, 255, 0.98)')
+    g.addColorStop(1, 'rgba(216, 232, 246, 0.98)')
+    octx.fillStyle = g
+    octx.beginPath()
+    octx.moveTo(0, snowTop(0))
+    for (let x = 0; x <= owidth; x += 6) octx.lineTo(x, snowTop(x))
+    octx.lineTo(owidth, oheight)
+    octx.lineTo(0, oheight)
+    octx.closePath()
+    octx.fill()
+
+    // 雪堆上部阴影（体积感）
+    octx.strokeStyle = 'rgba(176, 205, 229, 0.5)'
+    octx.lineWidth = 1.4
+    octx.beginPath()
+    for (let x = 0; x <= owidth; x += 6) {
+      if (x === 0) octx.moveTo(x, snowTop(x) + 3)
+      else octx.lineTo(x, snowTop(x) + 3)
+    }
+    octx.stroke()
+
+    // ---- 卡片上方积雪：沿卡片顶边（含圆角）生长，中间略厚
+    if (cardBox.width > 0) {
+      const thickness = 3 + 19 * accum
+      if (thickness > 1) {
+        const r = Math.min(cardBox.radius, cardBox.width / 2)
+        // 卡片顶边在某 x 处的 y（圆角处会往下弯）
+        const topEdgeAt = (x) => {
+          const dl = x - cardBox.left
+          const dr = cardBox.right - x
+          if (dl >= r && dr >= r) return cardBox.top
+          const d = dl < r ? r - dl : r - dr
+          return cardBox.top + (r - Math.sqrt(Math.max(0, r * r - d * d)))
+        }
+
+        const step = 3
+        const gs = octx.createLinearGradient(0, cardBox.top - thickness, 0, cardBox.top + 2)
+        gs.addColorStop(0, 'rgba(255, 255, 255, 1)')
+        gs.addColorStop(0.72, 'rgba(245, 250, 255, 1)')
+        gs.addColorStop(1, 'rgba(222, 236, 249, 1)')
+        octx.fillStyle = gs
+
+        octx.beginPath()
+        // 上沿：从中间往两侧略厚
+        let first = true
+        for (let x = cardBox.left; x <= cardBox.right; x += step) {
+          const t = (x - cardBox.left) / Math.max(1, cardBox.width)
+          const dome = Math.sin(Math.PI * t) * 2.6
+          const y = topEdgeAt(x) - thickness - dome
+          if (first) { octx.moveTo(x, y); first = false } else octx.lineTo(x, y)
+        }
+        // 下沿：回到卡片顶边（略微压进卡片 1px，避免缝隙）
+        for (let x = cardBox.right; x >= cardBox.left; x -= step) {
+          octx.lineTo(x, topEdgeAt(x) + 1)
+        }
+        octx.closePath()
+        octx.fill()
+
+        // 雪檐下沿淡阴影
+        octx.strokeStyle = 'rgba(146, 180, 212, 0.32)'
+        octx.lineWidth = 1
+        octx.beginPath()
+        let started = false
+        for (let x = cardBox.left + 4; x <= cardBox.right - 4; x += step) {
+          const y = topEdgeAt(x) + 0.6
+          if (!started) { octx.moveTo(x, y); started = true } else octx.lineTo(x, y)
+        }
+        octx.stroke()
+
+        // 雪面高光
+        octx.strokeStyle = 'rgba(255, 255, 255, 0.85)'
+        octx.lineWidth = 1.1
+        octx.beginPath()
+        started = false
+        for (let x = cardBox.left + 6; x <= cardBox.right - 6; x += step) {
+          const t = (x - cardBox.left) / Math.max(1, cardBox.width)
+          const y = topEdgeAt(x) - thickness - Math.sin(Math.PI * t) * 2.6 + 1.6
+          if (!started) { octx.moveTo(x, y); started = true } else octx.lineTo(x, y)
+        }
+        octx.stroke()
+      }
+    }
+  }
+
+  octx.restore()
 }
 
 function drawWeather() {
@@ -964,6 +1233,7 @@ function draw() {
   drawStars()
   drawEvents()
   drawWeather()
+  drawAccumulation()
 }
 
 /* ------------------------------------------------------------------ 生命周期 */
@@ -983,6 +1253,18 @@ function resize() {
   ctx = el.getContext('2d')
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   cachedGradient = null
+
+  // 叠加层 canvas（积水/积雪）
+  const ov = overlayRef.value
+  if (ov) {
+    owidth = width
+    oheight = height
+    ov.width = Math.round(width * dpr)
+    ov.height = Math.round(height * dpr)
+    octx = ov.getContext('2d')
+    octx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  }
+  measureCard()
 
   if (resized || !stars.length) buildStars()
   if (resized || !cloudList.value.length) {
@@ -1014,6 +1296,8 @@ function loop(ts) {
   stepClouds(dt)
   stepEvents(dt)
   stepWeather(dt)
+  stepAccumulation(dt)
+  stepSplashes(dt)
   draw()
   raf = requestAnimationFrame(loop)
 }
@@ -1060,6 +1344,9 @@ function onWeatherChange(e) {
 
 /** 当前天气是否有降水（雨/雪/雷暴）——只有这时「大中小」才有意义 */
 const intensityApplies = computed(() => bucketHasIntensity(skyStore.bucket))
+
+/** 调试用：当前堆积百分比 */
+const accumPercent = ref(0)
 
 /** 调试：手动指定降水强度（'auto' 用天气码/降水量推断） */
 function onIntensityChange(e) {
@@ -1145,6 +1432,12 @@ onMounted(() => {
         intensityApplies: bucketHasIntensity(skyStore.bucket),
       }
     },
+    get accum() { return { kind: accumKind, value: Number(accum.toFixed(3)), percent: Math.round(accum * 100) } },
+    setAccum(v) {
+      accum = Math.max(0, Math.min(1, Number(v) || 0))
+      accumKind = currentAccumKind()
+      draw()
+    },
     setWeather(bucket) {
       skyStore.override = bucket || 'auto'
       refreshCloudPalette()
@@ -1191,6 +1484,9 @@ onBeforeUnmount(() => {
     />
   </div>
 
+  <!-- 积水/积雪层：要盖在登录卡片之上（z-index 高于卡片），只做展示不接收事件 -->
+  <canvas ref="overlayRef" class="sky-accum" aria-hidden="true"></canvas>
+
   <!-- 主页调试卡片：北京时间 / 太阳位置 / 0–24 时间轴 / 触发按钮 -->
   <section class="debug-card" aria-label="天空调试">
     <header class="dc-head">
@@ -1215,6 +1511,11 @@ onBeforeUnmount(() => {
     <div v-show="!collapsed" class="dc-row dc-moon">
       <span class="dc-moon-label">月亮 {{ moonLabel }}</span>
       <span class="dc-sun">高度 {{ moonAlt.toFixed(0) }}°　方位 {{ moonAz.toFixed(0) }}°</span>
+    </div>
+
+    <div v-show="!collapsed" class="dc-row">
+      <span class="dc-phase">堆积 {{ accumPercent }}%</span>
+      <span class="dc-sun">{{ accumKind === 'rain' ? '积水' : accumKind === 'snow' ? '积雪' : '无降水' }}</span>
     </div>
 
     <div v-show="!collapsed" class="dc-row dc-weather">
@@ -1279,6 +1580,13 @@ onBeforeUnmount(() => {
   display: block;
   pointer-events: none;
   z-index: 0;
+}
+
+.sky-accum {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
 }
 
 .cloud-layer {
