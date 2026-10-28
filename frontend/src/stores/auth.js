@@ -81,8 +81,10 @@ const userId = computed(() => user.value?.userId ?? null)
     tokenStorage.setUser(user.value)
   }
 
-  async function login(username, password) {
-    const data = await authApi.login({ username, password })
+  async function login(username, password, captchaTicket) {
+    const payload = { username, password }
+    if (captchaTicket) payload.captchaTicket = captchaTicket
+    const data = await authApi.login(payload)
     token.value = data.token
     tokenStorage.setToken(data.token)
     applyLoginData(data)

@@ -158,6 +158,13 @@ export const auditApi = {
  * sky-context 不传参数时由后端按访客真实 IP 定位；
  * 传 province/city/district 时按手动选择的地点取天气。
  */
+export const captchaApi = {
+  /** 取一道新题（答案只在服务端） */
+  issue: () => http.get('/public/captcha', { silent: true }),
+  /** 提交滑块偏移，通过则拿到一次性 ticket */
+  verify: (token, offset) => http.post('/public/captcha/verify', { token, offset }, { silent: true }),
+}
+
 export const skyApi = {
   context: (params) => http.get('/public/sky-context', { params }),
   regions: () => http.get('/public/regions'),

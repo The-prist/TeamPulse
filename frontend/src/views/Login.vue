@@ -235,6 +235,8 @@ const CAPTCHA_THRESHOLD = 5
 const failCount = ref(Number(sessionStorage.getItem(FAIL_KEY) || 0))
 const captchaOpen = ref(false)
 const captchaPassed = ref(false)
+/** 服务端发放的一次性票据 */
+const captchaTicket = ref('')
 
 function bumpFail() {
   failCount.value += 1
@@ -255,8 +257,9 @@ function resetFail() {
   }
 }
 
-function onCaptchaVerified() {
+function onCaptchaVerified(ticket) {
   captchaPassed.value = true
+  captchaTicket.value = ticket || ''
   captchaOpen.value = false
   // 通过验证后给 5 次新机会，避免一次手误就要一直验证
   failCount.value = 0
@@ -371,7 +374,7 @@ async function handleLogin() {
 
   loading.value = true
   try {
-    await auth.login(form.username.trim(), form.password)
+    await auth.login(form.username.trim(), form.password, captchaTicket.value || undefined)
     resetFail()
     // 登录进来按当前时间决定白天/夜间（用户手动切过则以手动为准）
     applyTimeBasedTheme()
@@ -381,7 +384,12 @@ async function handleLogin() {
     flashLoginError()
     bumpFail()
     captchaPassed.value = false
-    if (failCount.value >= CAPTCHA_THRESHOLD) {
+    captchaTicket.value = ''
+    // 40101 / HTTP 423：服务端要求先过验证码
+    if (error?.code === 40101 || error?.code === 423) {
+      captchaOpen.value = true
+      ElMessage.warning('连续登录失败，请先完成安全验证')
+    } else if (failCount.value >= CAPTCHA_THRESHOLD) {
       captchaOpen.value = true
       ElMessage.warning('连续输错 5 次，请完成安全验证')
     }

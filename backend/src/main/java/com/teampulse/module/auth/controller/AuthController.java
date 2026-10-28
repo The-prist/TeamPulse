@@ -33,8 +33,9 @@ public class AuthController {
 
     @Operation(summary = "登录", description = "返回 JWT，前端后续请求以 Authorization: Bearer <token> 携带")
     @PostMapping("/login")
-    public ApiResponse<AuthDtos.LoginResponse> login(@Valid @RequestBody AuthDtos.LoginRequest request) {
-        return ApiResponse.ok(authService.login(request));
+    public ApiResponse<AuthDtos.LoginResponse> login(@Valid @RequestBody AuthDtos.LoginRequest request,
+                                                     jakarta.servlet.http.HttpServletRequest httpRequest) {
+        return ApiResponse.ok(authService.login(request, httpRequest));
     }
 
     @Operation(summary = "注册", description = "自助注册，角色固定为 member")

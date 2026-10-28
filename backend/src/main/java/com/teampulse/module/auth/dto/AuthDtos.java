@@ -24,6 +24,9 @@ public final class AuthDtos {
 
         @NotBlank(message = "密码不能为空")
         private String password;
+
+        /** 验证码通过后拿到的一次性票据（服务端判定需要验证时才校验） */
+        private String captchaTicket;
     }
 
     @Data

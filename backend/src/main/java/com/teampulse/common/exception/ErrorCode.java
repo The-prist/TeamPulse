@@ -21,6 +21,10 @@ public enum ErrorCode {
 
     BAD_REQUEST(40000, "请求参数不合法", HttpStatus.BAD_REQUEST),
     UNAUTHORIZED(40100, "未登录或登录已过期", HttpStatus.UNAUTHORIZED),
+    /** 连续登录失败，必须先通过验证码 */
+    LOGIN_CAPTCHA_REQUIRED(40101, "连续登录失败，请先完成安全验证", HttpStatus.LOCKED),
+    /** 验证码不正确或已过期 */
+    CAPTCHA_INVALID(40102, "验证码不正确或已过期", HttpStatus.BAD_REQUEST),
     FORBIDDEN(40300, "没有该操作的权限", HttpStatus.FORBIDDEN),
     NOT_FOUND(40400, "资源不存在", HttpStatus.NOT_FOUND),
     CONFLICT(40900, "资源冲突", HttpStatus.CONFLICT),
