@@ -169,7 +169,8 @@ import { InfoFilled, Lock, User } from '@element-plus/icons-vue'
 import { Cloudy, Drizzling, Lightning, Moon, MostlyCloudy, PartlyCloudy, Pouring, Sunny, Sunrise } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useSkyStore } from '@/stores/sky'
-import { applyTimeBasedTheme, bgOf, currentTheme } from '@/utils/theme'
+import { applyTimeBasedTheme } from '@/utils/theme'
+import { circleTransition } from '@/utils/pageTransition'
 import { computed, nextTick } from 'vue'
 
 const router = useRouter()
@@ -304,53 +305,7 @@ function flashLoginError() {
  */
 async function playLoginTransition(target) {
   const btn = loginBtnRef.value?.$el ?? loginBtnRef.value
-  if (!btn || typeof document === 'undefined') {
-    await router.replace(target).catch(() => {})
-    return
-  }
-
-  const rect = btn.getBoundingClientRect()
-  const cx = rect.left + rect.width / 2
-  const cy = rect.top + rect.height / 2
-  const radius =
-    Math.max(
-      Math.hypot(cx, cy),
-      Math.hypot(window.innerWidth - cx, cy),
-      Math.hypot(cx, window.innerHeight - cy),
-      Math.hypot(window.innerWidth - cx, window.innerHeight - cy),
-    ) + 8
-
-  const overlay = document.createElement('div')
-  overlay.className = 'tp-login-circle'
-  // 用目标主题的背景色，扩满后与登录后的界面同色，切换瞬间不会闪
-  overlay.style.background = bgOf(currentTheme())
-  overlay.style.clipPath = `circle(0px at ${cx}px ${cy}px)`
-  document.body.appendChild(overlay)
-
-  const expand = overlay.animate(
-    [
-      { clipPath: `circle(0px at ${cx}px ${cy}px)` },
-      { clipPath: `circle(${radius}px at ${cx}px ${cy}px)` },
-    ],
-    { duration: 460, easing: 'cubic-bezier(.22,.61,.36,1)', fill: 'forwards' },
-  )
-  await expand.finished.catch(() => {})
-
-  // 整屏被圆盖住，此时切路由（用户看不到页面切换）
-  await router.replace(target).catch(() => {})
-  await nextTick()
-  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-
-  // 圆缩回按钮位置，露出新界面
-  const shrink = overlay.animate(
-    [
-      { clipPath: `circle(${radius}px at ${cx}px ${cy}px)` },
-      { clipPath: `circle(0px at ${cx}px ${cy}px)` },
-    ],
-    { duration: 380, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' },
-  )
-  await shrink.finished.catch(() => {})
-  overlay.remove()
+  await circleTransition({ origin: btn, navigate: () => router.replace(target).catch(() => {}) })
 }
 
 async function handleLogin() {
@@ -737,16 +692,5 @@ async function handleLogin() {
   .form-side {
     padding: 38px 30px;
   }
-}
-</style>
-
-<style>
-/* 登录成功转场用的覆盖圆（动态创建，所以不能用 scoped） */
-.tp-login-circle {
-  position: fixed;
-  inset: 0;
-  z-index: 5000;
-  pointer-events: none;
-  will-change: clip-path;
 }
 </style>

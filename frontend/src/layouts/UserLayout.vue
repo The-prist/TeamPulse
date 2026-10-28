@@ -59,7 +59,7 @@
         <div class="header-right">
           <el-tag size="small" type="info" effect="plain">{{ auth.roleName || auth.role }}</el-tag>
           <el-button link @click="$router.push('/u/profile')">{{ auth.displayName }}</el-button>
-          <el-button v-if="auth.canUseAdminPanel" link @click="$router.push('/entry')">切换面板</el-button>
+          <el-button v-if="auth.canUseAdminPanel" link @click="switchPanel($event)">切换面板</el-button>
           <el-button link type="danger" @click="handleLogout">退出</el-button>
         </div>
       </el-header>
@@ -79,6 +79,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import Breadcrumb from '@/components/Breadcrumb.vue'
 import { useAuthStore } from '@/stores/auth'
+import { circleTransition } from '@/utils/pageTransition'
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -95,6 +96,12 @@ async function handleLogout() {
   }
   auth.logout()
   router.replace('/login')
+}
+
+/** 顶栏「切换面板」：用圆形转场去选择页 */
+function switchPanel(event) {
+  const origin = event?.currentTarget ?? event?.target
+  circleTransition({ origin, navigate: () => router.push('/entry') })
 }
 </script>
 
