@@ -61,11 +61,13 @@
         align-center
         append-to-body
         :close-on-click-modal="false"
+        destroy-on-close
         class="captcha-dialog"
+        @open="onCaptchaOpen"
       >
         <p class="captcha-tip">密码已连续输错 {{ failCount }} 次，拖动滑块完成验证后继续</p>
         <div class="captcha-body">
-          <CaptchaSlider @verified="onCaptchaVerified" />
+          <CaptchaSlider ref="captchaRef" @verified="onCaptchaVerified" />
         </div>
       </el-dialog>
 
@@ -238,6 +240,18 @@ const captchaOpen = ref(false)
 const captchaPassed = ref(false)
 /** 服务端发放的一次性票据 */
 const captchaTicket = ref('')
+const captchaRef = ref(null)
+
+/**
+ * 每次打开验证码弹窗都要重置：
+ * ticket 是一次性的（上次已经用掉了），滑块也要换一道新题，
+ * 否则第二次会看到上一次「已验证」的状态。
+ */
+function onCaptchaOpen() {
+  captchaTicket.value = ''
+  captchaPassed.value = false
+  nextTick(() => captchaRef.value?.reload?.())
+}
 
 function bumpFail() {
   failCount.value += 1

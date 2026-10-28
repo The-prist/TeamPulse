@@ -74,6 +74,7 @@ async function reload() {
   state.value = 'idle'
   offset.value = 0
   dragging.value = false
+  challenge.value = null
   loading.value = true
   try {
     challenge.value = await captchaApi.issue()
