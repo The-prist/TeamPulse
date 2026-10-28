@@ -60,12 +60,14 @@
         width="392px"
         align-center
         append-to-body
-        :close-on-click-modal="false"
         destroy-on-close
         class="captcha-dialog"
         @open="onCaptchaOpen"
       >
         <p class="captcha-tip">密码已连续输错 {{ failCount }} 次，拖动滑块完成验证后继续</p>
+        <p class="captcha-progress">
+          本机已失败 <b>{{ guard.ipFailures }}</b> / 10 次，达到 10 次将临时限制登录 10 分钟
+        </p>
         <p class="captcha-forgot">忘记了您的密码？请联系您的主管或服务器管理员重置密码。</p>
         <div class="captcha-body">
           <CaptchaSlider ref="captchaRef" @verified="onCaptchaVerified" />
@@ -155,7 +157,12 @@
             登录尝试过于频繁，已临时限制登录，请 {{ blockedMinutes }} 分钟后重试
           </div>
 
-          <div v-else-if="captchaTriggered" class="forgot-tip">
+          <div v-else-if="guard.ipFailures > 0 || captchaTriggered" class="guard-tip">
+            <el-icon><InfoFilled /></el-icon>
+            本机连续失败 <b>{{ guard.ipFailures }}</b> / 10 次，达到 10 次将临时限制登录 10 分钟
+          </div>
+
+          <div v-if="captchaTriggered" class="forgot-tip">
             <el-icon><InfoFilled /></el-icon>
             忘记了您的密码？请联系您的主管或服务器管理员重置密码。
           </div>
@@ -176,12 +183,13 @@
 <script setup>
 import CaptchaSlider from '@/components/CaptchaSlider.vue'
 import LoginSky from '@/components/LoginSky.vue'
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { InfoFilled, Lock, User } from '@element-plus/icons-vue'
 import { Cloudy, Drizzling, Lightning, Moon, MostlyCloudy, PartlyCloudy, Pouring, Sunny, Sunrise } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
+import { loginGuardApi } from '@/api'
 import { useSkyStore } from '@/stores/sky'
 import { applyTimeBasedTheme } from '@/utils/theme'
 import { circleTransition } from '@/utils/pageTransition'
@@ -254,6 +262,22 @@ const captchaPassed = ref(false)
 const captchaTicket = ref('')
 /** 是否已经触发过验证码：一旦触发，之后每次登录都要重新验证 */
 const captchaTriggered = ref(false)
+/** 服务端返回的防护状态（失败计数 / 是否拉黑 / 剩余秒数） */
+const guard = ref({ userFailures: 0, ipFailures: 0, captchaRequired: false, blocked: false, blockedRemainingSeconds: 0 })
+
+/** 按服务端数据同步本地状态；拿不到就保留原值 */
+async function refreshGuard() {
+  try {
+    const data = await loginGuardApi.status(form.username.trim() || '')
+    guard.value = data
+    if (data?.blocked) {
+      blockedUntil.value = Date.now() + (data.blockedRemainingSeconds || 600) * 1000
+    }
+  } catch {
+    /* 拿不到就静默，不影响登录 */
+  }
+}
+
 /** IP 被拉黑时的解封时间戳（0 表示未拉黑） */
 const blockedUntil = ref(0)
 const nowTick = ref(Date.now())
@@ -273,6 +297,10 @@ const captchaRef = ref(null)
 window.setInterval(() => {
   nowTick.value = Date.now()
 }, 1000)
+
+onMounted(() => {
+  refreshGuard()
+})
 
 function onCaptchaOpen() {
   captchaTriggered.value = true
@@ -399,6 +427,7 @@ async function handleLogin() {
       captchaOpen.value = true
       ElMessage.warning('连续输错 5 次，请完成安全验证')
     }
+    refreshGuard()
     // 具体错误文案由 http 拦截器统一提示，这里只兜住未登录的边界情况
     if (!error?.code) ElMessage.error(error?.message || '登录失败，请稍后重试')
   } finally {
@@ -691,11 +720,40 @@ async function handleLogin() {
 }
 
 /* 验证码弹窗 */
+.captcha-progress {
+  margin: -8px 0 10px;
+  font-size: 12px;
+  color: #2c5282;
+  text-align: center;
+}
+
+.captcha-progress b {
+  color: #c53030;
+}
+
 .captcha-forgot {
   margin: -6px 0 14px;
   font-size: 12px;
   color: #b45309;
   text-align: center;
+}
+
+.guard-tip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  background: #eef4ff;
+  border: 1px solid #cddff8;
+  color: #2c5282;
+}
+
+.guard-tip b {
+  color: #c53030;
 }
 
 .forgot-tip,

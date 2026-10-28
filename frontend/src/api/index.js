@@ -158,6 +158,11 @@ export const auditApi = {
  * sky-context 不传参数时由后端按访客真实 IP 定位；
  * 传 province/city/district 时按手动选择的地点取天气。
  */
+export const loginGuardApi = {
+  /** 查询当前访客的失败计数 / 是否被拉黑（只返回自己的状态） */
+  status: (username) => http.get('/public/login-guard', { params: { username }, silent: true }),
+}
+
 export const captchaApi = {
   /** 取一道新题（答案只在服务端） */
   issue: () => http.get('/public/captcha', { silent: true }),
