@@ -163,7 +163,10 @@ http.interceptors.response.use(
       }
       return Promise.reject(new BizError('没有该操作的权限', 40300))
     }
-    if (!error.config?.silent) {
+    // 423（需要验证码）/ 429（限流拉黑）是预期业务分支：
+    // 登录页自己会给出针对性提示，这里不再弹 toast、也不弹「网络错误」横幅
+    const isExpectedGuard = (status === 423 || status === 429) && isLoginRequest(error.config)
+    if (!error.config?.silent && !isExpectedGuard) {
       ElMessage.error(message)
       reportNetError(message, retryOf(error.config), traceOf(error.response))
     }

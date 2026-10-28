@@ -152,7 +152,7 @@
 
           <div v-if="isBlocked" class="block-tip">
             <el-icon><InfoFilled /></el-icon>
-            登录尝试过于频繁，已临时限制登录，请 {{ Math.ceil(blockedSeconds / 60) }} 分钟后重试
+            登录尝试过于频繁，已临时限制登录，请 {{ blockedMinutes }} 分钟后重试
           </div>
 
           <div v-else-if="captchaTriggered" class="forgot-tip">
@@ -260,6 +260,8 @@ const nowTick = ref(Date.now())
 
 /** 拉黑剩余秒数 */
 const blockedSeconds = computed(() => Math.max(0, Math.ceil((blockedUntil.value - nowTick.value) / 1000)))
+/** 展示用分钟数：四舍五入，避免 600.4s 被算成 11 分钟 */
+const blockedMinutes = computed(() => Math.max(1, Math.round(blockedSeconds.value / 60)))
 const isBlocked = computed(() => blockedSeconds.value > 0)
 const captchaRef = ref(null)
 
@@ -349,16 +351,13 @@ async function handleLogin() {
   // ① IP 被拉黑中：直接提示，不发请求
   if (isBlocked.value) {
     flashLoginError()
-    ElMessage.error(`登录尝试过于频繁，请 ${Math.ceil(blockedSeconds.value / 60)} 分钟后再试`)
+    ElMessage.error(`登录尝试过于频繁，请 ${blockedMinutes.value} 分钟后再试`)
     return
   }
 
-  // ② 已经触发过验证码：每次登录都要先过一道新题
-  if (captchaTriggered.value && !captchaTicket.value) {
-    flashLoginError()
-    captchaOpen.value = true
-    return
-  }
+  // ② 已触发过验证码时不再本地拦截：照常发请求（可能没有 ticket），
+  //    让后端把这次失败计入 IP 计数，否则 10 次拉黑永远触发不到。
+  //    没有 ticket 时后端会返回 40101，前端收到后再弹新题。
 
   // ② 表单没填/格式不对：同样算一次"点了没进去"，变红并计数
   const valid = await formRef.value?.validate().catch(() => false)
@@ -391,10 +390,10 @@ async function handleLogin() {
       blockedUntil.value = Date.now() + minutes * 60 * 1000
       ElMessage.error(`登录尝试过于频繁，请 ${minutes} 分钟后再试`)
     } else if (error?.code === 40101 || error?.code === 423) {
-      // 服务端要求验证码：保持粘性，下次点登录会直接弹新题
+      // 40101：只弹验证码，不额外提示（避免和拦截器重复）
+      // 服务端要求验证码：被动弹出新题（说明这次请求已被计入失败次数）
       captchaTriggered.value = true
       captchaOpen.value = true
-      ElMessage.warning('连续登录失败，请先完成安全验证')
     } else if (failCount.value >= CAPTCHA_THRESHOLD) {
       captchaTriggered.value = true
       captchaOpen.value = true
