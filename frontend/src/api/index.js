@@ -161,6 +161,8 @@ export const auditApi = {
 export const loginGuardApi = {
   /** 查询当前访客的失败计数 / 是否被拉黑（只返回自己的状态） */
   status: (username) => http.get('/public/login-guard', { params: { username }, silent: true }),
+  /** 登记一次「点了登录但没真正认证」的尝试（表单未填等），让服务端计数与界面一致 */
+  attempt: (username) => http.post('/public/login-guard/attempt', { username }, { silent: true }),
 }
 
 export const captchaApi = {

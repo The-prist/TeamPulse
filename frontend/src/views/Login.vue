@@ -392,6 +392,16 @@ async function handleLogin() {
   if (!valid) {
     flashLoginError()
     bumpFail()
+    // 表单没填/格式不对时请求不会到认证接口，服务端统计不到，
+    // 这里显式登记一次，保证「N/10」与服务端一致
+    try {
+      guard.value = await loginGuardApi.attempt(form.username.trim() || '')
+      if (guard.value?.blocked) {
+        blockedUntil.value = Date.now() + (guard.value.blockedRemainingSeconds || 600) * 1000
+      }
+    } catch {
+      /* 登记失败不影响登录流程 */
+    }
     if (failCount.value >= CAPTCHA_THRESHOLD) {
       captchaTriggered.value = true
       captchaOpen.value = true
