@@ -512,3 +512,30 @@ teampulse_attendance_idempotent_total{layer="message"} 1.0   # 重复报文被�
 
 > 这两条原先记为「未完成」，现改为「决策不做」。后续若要恢复，只需：处理 GitHub 账单 → 手动触发 workflow；
 > 以及网页 Settings → Danger Zone → Change visibility。
+
+### 16.8 登录体验与登录安全（2026-10-28）
+
+本轮把「打开系统后的第一分钟」补齐，共 6 个方向。正式文档见
+`docs/TeamPulse_登录体验与登录安全增强说明.docx`（13 页 / 22 表 / 6 图），
+Markdown 摘要见 `docs/登录体验与登录安全增强说明.md`。
+
+| 方向 | 关键实现 | 文件 |
+|---|---|---|
+| 登录页天空 | 真实天文计算（含折射）、天色关键帧、日月同弧、星与流星/飞机 | `frontend/src/utils/solar.js`、`components/LoginSky.vue` |
+| 实时天气 | IP → 城市 → Open-Meteo；8 档天气驱动云量/雨雪雾雷暴 | `backend/.../module/sky/*`、`stores/sky.js`、`utils/skyWeather.js` |
+| 雨雪堆积 | 叠加 canvas，水位最高到卡片下沿；雨点溅水花；卡片顶积雪 | `LoginSky.vue` |
+| 登录交互 | 失败变红、成功圆形转场、主题按本地时间 | `views/Login.vue`、`utils/theme.js`、`utils/pageTransition.js` |
+| 登录安全 | 服务端滑块验证码 + 一次性 ticket + 账号/IP 双线限流 | `backend/.../module/captcha/*`、`components/CaptchaSlider.vue` |
+| 面板过渡 | 选择页暗色适配、切换面板圆形转场 | `views/RoleEntry.vue`、`layouts/*.vue` |
+
+**本轮修掉的 5 个典型缺陷**（都写进了正式文档的踩坑章节）：
+
+1. 天气档位切换写在 `resize()` 里 → 拖时间滑块/切天气不触发，云色一直停在初始晨昏配色。
+2. 叠加层 canvas 每帧没 `clearRect` → 水/雪逐帧叠加变厚，切走天气也擦不掉。
+3. 地名解析三连坑：后缀、模糊命中（上海市→洛阳）、同名优先级（长春市→黑龙江村子）。
+4. `.subtitle` 撞上 `dark-fixes.css` 的全局 `!important` → 面板页副标题在暗色下被拉成主文字色。
+5. `el-dialog` 常驻挂载 → 第二次触发验证码仍停在上次「已验证」状态。
+
+**如实标注的能力边界**：滑块验证码可被图像配准破解（验收脚本即用归一化互相关解的）；
+限流与题目状态在进程内存，多实例需换 Redis；账号锁定、MFA、WAF 均未实现；
+IP 定位为城市级，VPN/NAT 下可能偏差数百公里。
