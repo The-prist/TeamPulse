@@ -1,6 +1,7 @@
 package com.teampulse.module.captcha.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -30,13 +31,13 @@ import java.util.concurrent.ConcurrentHashMap;
 public class LoginGuardService {
 
     /** 触发验证码的失败次数 */
-    private static final int CAPTCHA_THRESHOLD = 5;
+    private final int captchaThreshold;
     /** 触发 IP 拉黑的失败次数 */
-    private static final int IP_BLOCK_THRESHOLD = 10;
+    private final int ipBlockThreshold;
     /** 计数窗口 */
-    private static final Duration WINDOW = Duration.ofMinutes(15);
+    private final Duration window;
     /** IP 拉黑冷却时间 */
-    private static final Duration IP_BLOCK_COOLDOWN = Duration.ofMinutes(10);
+    private final Duration ipBlockCooldown;
 
     private final Map<String, Counter> byUser = new ConcurrentHashMap<>();
     private final Map<String, Counter> byIp = new ConcurrentHashMap<>();
@@ -46,7 +47,15 @@ public class LoginGuardService {
     /** 每次启动随机生成，用于对 IP 做不可逆摘要 */
     private final byte[] ipSalt = new byte[32];
 
-    public LoginGuardService() {
+    public LoginGuardService(
+            @Value("${teampulse.login.captcha-threshold:5}") int captchaThreshold,
+            @Value("${teampulse.login.ip-block-threshold:10}") int ipBlockThreshold,
+            @Value("${teampulse.login.window:15m}") Duration window,
+            @Value("${teampulse.login.cooldown:10m}") Duration ipBlockCooldown) {
+        this.captchaThreshold = Math.max(1, captchaThreshold);
+        this.ipBlockThreshold = Math.max(2, ipBlockThreshold);
+        this.window = window;
+        this.ipBlockCooldown = ipBlockCooldown;
         new SecureRandom().nextBytes(ipSalt);
     }
 
@@ -61,6 +70,7 @@ public class LoginGuardService {
         }
         if (System.currentTimeMillis() >= until) {
             ipBlacklist.remove(key);
+            log.info("IP 冷却结束，恢复正常: digest={}", key.substring(0, 8));
             return false;
         }
         return true;
@@ -93,8 +103,8 @@ public class LoginGuardService {
         return Map.of(
                 "userFailures", u == null ? 0 : u.count,
                 "ipFailures", i == null ? 0 : i.count,
-                "captchaThreshold", CAPTCHA_THRESHOLD,
-                "ipBlockThreshold", IP_BLOCK_THRESHOLD,
+                "captchaThreshold", captchaThreshold,
+                "ipBlockThreshold", ipBlockThreshold,
                 "blocked", isBlocked(ip),
                 "blockedRemainingSeconds", blockedRemainingSeconds(ip),
                 "ipDigestPrefix", hashIp(ip).substring(0, 8));
@@ -105,12 +115,16 @@ public class LoginGuardService {
     public void recordFailure(String username, String ip) {
         bump(byUser, key("u", username));
         Counter ipCounter = bump(byIp, key("ip", ip));
-        if (ipCounter != null && ipCounter.count >= IP_BLOCK_THRESHOLD) {
+        if (ipCounter != null && ipCounter.count >= ipBlockThreshold) {
             String hashed = hashIp(ip);
-            ipBlacklist.put(hashed, System.currentTimeMillis() + IP_BLOCK_COOLDOWN.toMillis());
-            // 只记摘要前缀，日志里不出现原始 IP
-            log.warn("IP 触发拉黑: digest={} 计数={} 冷却={}分钟", hashed.substring(0, 8),
-                    ipCounter.count, IP_BLOCK_COOLDOWN.toMinutes());
+            ipBlacklist.put(hashed, System.currentTimeMillis() + ipBlockCooldown.toMillis());
+            // 关键：罚则交给黑名单本身，计数立刻清零。
+            // 否则冷却结束后计数仍是 10，用户拿正确密码登录也会先被判「需要验证码」，
+            // 而这次拒绝又计一次失败 → 立刻二次拉黑，等于永远出不来。
+            byIp.remove(key("ip", ip));
+            byUser.remove(key("u", username));
+            log.warn("IP 触发拉黑: digest={} 计数={} 冷却={}分钟（计数已清零）", hashed.substring(0, 8),
+                    ipCounter.count, ipBlockCooldown.toMinutes());
         }
     }
 
@@ -121,20 +135,20 @@ public class LoginGuardService {
 
     // ------------------------------------------------------------------ 内部
 
-    private static boolean exceeded(Counter counter) {
+    private boolean exceeded(Counter counter) {
         if (counter == null) {
             return false;
         }
-        if (System.currentTimeMillis() - counter.firstAt > WINDOW.toMillis()) {
+        if (System.currentTimeMillis() - counter.firstAt > window.toMillis()) {
             return false;
         }
-        return counter.count >= CAPTCHA_THRESHOLD;
+        return counter.count >= captchaThreshold;
     }
 
-    private static Counter bump(Map<String, Counter> map, String key) {
+    private Counter bump(Map<String, Counter> map, String key) {
         long now = System.currentTimeMillis();
         Counter updated = map.compute(key, (k, old) -> {
-            if (old == null || now - old.firstAt > WINDOW.toMillis()) {
+            if (old == null || now - old.firstAt > window.toMillis()) {
                 return new Counter(1, now);
             }
             return new Counter(old.count + 1, old.firstAt);
