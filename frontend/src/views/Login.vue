@@ -53,6 +53,22 @@
         </div>
       </div>
 
+      <!-- 连续失败后要求过验证码 -->
+      <el-dialog
+        v-model="captchaOpen"
+        title="安全验证"
+        width="392px"
+        align-center
+        append-to-body
+        :close-on-click-modal="false"
+        class="captcha-dialog"
+      >
+        <p class="captcha-tip">密码已连续输错 {{ failCount }} 次，拖动滑块完成验证后继续</p>
+        <div class="captcha-body">
+          <CaptchaSlider @verified="onCaptchaVerified" />
+        </div>
+      </el-dialog>
+
       <!-- 城市选择：省 → 市 → 区 三级联动 -->
       <el-dialog
         v-model="regionOpen"
@@ -144,6 +160,7 @@
 </template>
 
 <script setup>
+import CaptchaSlider from '@/components/CaptchaSlider.vue'
 import LoginSky from '@/components/LoginSky.vue'
 import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -209,8 +226,47 @@ async function resetRegion() {
 
 const formRef = ref(null)
 const loginBtnRef = ref(null)
-/** 登录失败时按钮短暂变红 + 抖动 */
+/** 登录失败时按钮短暂变红 */
 const loginFailed = ref(false)
+
+/** 连续失败次数（存在 sessionStorage，刷新页面不会清零） */
+const FAIL_KEY = 'tp_login_fail_count'
+const CAPTCHA_THRESHOLD = 5
+const failCount = ref(Number(sessionStorage.getItem(FAIL_KEY) || 0))
+const captchaOpen = ref(false)
+const captchaPassed = ref(false)
+
+function bumpFail() {
+  failCount.value += 1
+  try {
+    sessionStorage.setItem(FAIL_KEY, String(failCount.value))
+  } catch {
+    /* ignore */
+  }
+}
+
+function resetFail() {
+  failCount.value = 0
+  captchaPassed.value = false
+  try {
+    sessionStorage.removeItem(FAIL_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
+function onCaptchaVerified() {
+  captchaPassed.value = true
+  captchaOpen.value = false
+  // 通过验证后给 5 次新机会，避免一次手误就要一直验证
+  failCount.value = 0
+  try {
+    sessionStorage.removeItem(FAIL_KEY)
+  } catch {
+    /* ignore */
+  }
+  ElMessage.success('验证通过，请重新登录')
+}
 const loading = ref(false)
 const form = reactive({ username: '', password: '' })
 
@@ -228,10 +284,9 @@ function targetAfterLogin() {
   return preferred === 'user' ? '/u/home' : '/dashboard'
 }
 
-/** 失败反馈：按钮变红 + 抖一下（560ms 后复原） */
+/** 失败反馈：按钮变红（560ms 后复原）。没有抖动。 */
 function flashLoginError() {
   loginFailed.value = false
-  // 先复位再下一帧加上，保证连续失败时动画也能重播
   nextTick(() => {
     loginFailed.value = true
     window.setTimeout(() => {
@@ -297,18 +352,39 @@ async function playLoginTransition(target) {
 
 async function handleLogin() {
   if (loading.value) return
+
+  // ① 已经失败到阈值：先过验证码
+  if (failCount.value >= CAPTCHA_THRESHOLD && !captchaPassed.value) {
+    flashLoginError()
+    captchaOpen.value = true
+    return
+  }
+
+  // ② 表单没填/格式不对：同样算一次"点了没进去"，变红并计数
   const valid = await formRef.value?.validate().catch(() => false)
-  if (!valid) return
+  if (!valid) {
+    flashLoginError()
+    bumpFail()
+    if (failCount.value >= CAPTCHA_THRESHOLD) captchaOpen.value = true
+    return
+  }
 
   loading.value = true
   try {
     await auth.login(form.username.trim(), form.password)
+    resetFail()
     // 登录进来按当前时间决定白天/夜间（用户手动切过则以手动为准）
     applyTimeBasedTheme()
     await playLoginTransition(targetAfterLogin())
     ElMessage.success('登录成功')
   } catch (error) {
     flashLoginError()
+    bumpFail()
+    captchaPassed.value = false
+    if (failCount.value >= CAPTCHA_THRESHOLD) {
+      captchaOpen.value = true
+      ElMessage.warning('连续输错 5 次，请完成安全验证')
+    }
     // 具体错误文案由 http 拦截器统一提示，这里只兜住未登录的边界情况
     if (!error?.code) ElMessage.error(error?.message || '登录失败，请稍后重试')
   } finally {
@@ -594,19 +670,23 @@ async function handleLogin() {
   font-size: 13px;
   color: #64748b;
 }
-/* 登录失败：变红 + 抖一下 */
+/* 登录失败：按钮变红（不抖动） */
 .submit-btn.is-failed {
   background-color: #d64545 !important;
   border-color: #d64545 !important;
-  animation: tp-login-shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
 }
 
-@keyframes tp-login-shake {
-  10%, 90% { transform: translateX(-2px); }
-  20%, 80% { transform: translateX(4px); }
-  30%, 50%, 70% { transform: translateX(-6px); }
-  40%, 60% { transform: translateX(6px); }
-  100% { transform: translateX(0); }
+/* 验证码弹窗 */
+.captcha-body {
+  display: flex;
+  justify-content: center;
+}
+
+.captcha-tip {
+  margin: 0 0 14px;
+  font-size: 12.5px;
+  color: #64748b;
+  text-align: center;
 }
 
 .submit-btn {
