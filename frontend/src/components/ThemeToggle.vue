@@ -13,7 +13,7 @@
 -->
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { bgOf, currentTheme, runThemeTransition, setTheme, THEMES } from '@/utils/theme'
+import { bgOf, currentTheme, markThemeManual, runThemeTransition, setTheme, THEMES } from '@/utils/theme'
 
 const theme = ref(THEMES.LIGHT)
 const busy = ref(false)
@@ -37,6 +37,7 @@ async function toggle(event) {
 
   // 页面注册了自己的切换动画（登录页：星星颤抖坠落 + 右侧日出）→ 交给它，不播全屏覆盖
   if (await runThemeTransition(next)) {
+    markThemeManual()
     theme.value = next
     busy.value = false
     return
@@ -81,6 +82,7 @@ async function toggle(event) {
   await wait(450)
 
   // ---- 切换主题（整屏被盖住，用户看不到跳变）
+  markThemeManual()
   setTheme(next)
   theme.value = next
 

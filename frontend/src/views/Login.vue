@@ -118,9 +118,11 @@
             </el-form-item>
 
             <el-button
+              ref="loginBtnRef"
               type="primary"
               size="large"
               class="submit-btn"
+              :class="{ 'is-failed': loginFailed }"
               :loading="loading"
               @click="handleLogin"
             >
@@ -150,7 +152,8 @@ import { InfoFilled, Lock, User } from '@element-plus/icons-vue'
 import { Cloudy, Drizzling, Lightning, Moon, MostlyCloudy, PartlyCloudy, Pouring, Sunny, Sunrise } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useSkyStore } from '@/stores/sky'
-import { computed } from 'vue'
+import { applyTimeBasedTheme, bgOf, currentTheme } from '@/utils/theme'
+import { computed, nextTick } from 'vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -205,12 +208,91 @@ async function resetRegion() {
 }
 
 const formRef = ref(null)
+const loginBtnRef = ref(null)
+/** 登录失败时按钮短暂变红 + 抖动 */
+const loginFailed = ref(false)
 const loading = ref(false)
 const form = reactive({ username: '', password: '' })
 
 const rules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
+}
+
+/** 登录成功后要去哪 */
+function targetAfterLogin() {
+  const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''
+  if (!auth.canUseAdminPanel) return redirect || '/u/home'
+  const preferred = localStorage.getItem('preferredPanel')
+  if (!preferred) return '/entry'
+  return preferred === 'user' ? '/u/home' : '/dashboard'
+}
+
+/** 失败反馈：按钮变红 + 抖一下（560ms 后复原） */
+function flashLoginError() {
+  loginFailed.value = false
+  // 先复位再下一帧加上，保证连续失败时动画也能重播
+  nextTick(() => {
+    loginFailed.value = true
+    window.setTimeout(() => {
+      loginFailed.value = false
+    }, 560)
+  })
+}
+
+/**
+ * 登录成功转场：从登录按钮升起一个顶层圆 → 扩张铺满 → 切路由 → 再缩回。
+ * 用的是 Web Animations 的 clip-path 动画，等价于「圆形揭开」。
+ */
+async function playLoginTransition(target) {
+  const btn = loginBtnRef.value?.$el ?? loginBtnRef.value
+  if (!btn || typeof document === 'undefined') {
+    await router.replace(target).catch(() => {})
+    return
+  }
+
+  const rect = btn.getBoundingClientRect()
+  const cx = rect.left + rect.width / 2
+  const cy = rect.top + rect.height / 2
+  const radius =
+    Math.max(
+      Math.hypot(cx, cy),
+      Math.hypot(window.innerWidth - cx, cy),
+      Math.hypot(cx, window.innerHeight - cy),
+      Math.hypot(window.innerWidth - cx, window.innerHeight - cy),
+    ) + 8
+
+  const overlay = document.createElement('div')
+  overlay.className = 'tp-login-circle'
+  // 用目标主题的背景色，扩满后与登录后的界面同色，切换瞬间不会闪
+  overlay.style.background = bgOf(currentTheme())
+  overlay.style.clipPath = `circle(0px at ${cx}px ${cy}px)`
+  document.body.appendChild(overlay)
+
+  const expand = overlay.animate(
+    [
+      { clipPath: `circle(0px at ${cx}px ${cy}px)` },
+      { clipPath: `circle(${radius}px at ${cx}px ${cy}px)` },
+    ],
+    { duration: 460, easing: 'cubic-bezier(.22,.61,.36,1)', fill: 'forwards' },
+  )
+  await expand.finished.catch(() => {})
+
+  // 整屏被圆盖住，此时切路由（用户看不到页面切换）
+  await router.replace(target).catch(() => {})
+  await nextTick()
+  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+
+  // 圆缩回按钮位置，露出新界面
+  const shrink = overlay.animate(
+    [
+      { clipPath: `circle(${radius}px at ${cx}px ${cy}px)` },
+      { clipPath: `circle(0px at ${cx}px ${cy}px)` },
+    ],
+    { duration: 380, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' },
+  )
+  await shrink.finished.catch(() => {})
+  overlay.remove()
 }
 
 async function handleLogin() {
@@ -221,21 +303,12 @@ async function handleLogin() {
   loading.value = true
   try {
     await auth.login(form.username.trim(), form.password)
+    // 登录进来按当前时间决定白天/夜间（用户手动切过则以手动为准）
+    applyTimeBasedTheme()
+    await playLoginTransition(targetAfterLogin())
     ElMessage.success('登录成功')
-
-    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''
-    if (!auth.canUseAdminPanel) {
-      router.replace(redirect || '/u/home')
-      return
-    }
-    // 管理员：沿用上次选择的面板，没选过就先让其选一次
-    const preferred = localStorage.getItem('preferredPanel')
-    if (!preferred) {
-      router.replace('/entry')
-    } else {
-      router.replace(preferred === 'user' ? '/u/home' : '/dashboard')
-    }
   } catch (error) {
+    flashLoginError()
     // 具体错误文案由 http 拦截器统一提示，这里只兜住未登录的边界情况
     if (!error?.code) ElMessage.error(error?.message || '登录失败，请稍后重试')
   } finally {
@@ -521,6 +594,21 @@ async function handleLogin() {
   font-size: 13px;
   color: #64748b;
 }
+/* 登录失败：变红 + 抖一下 */
+.submit-btn.is-failed {
+  background-color: #d64545 !important;
+  border-color: #d64545 !important;
+  animation: tp-login-shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+@keyframes tp-login-shake {
+  10%, 90% { transform: translateX(-2px); }
+  20%, 80% { transform: translateX(4px); }
+  30%, 50%, 70% { transform: translateX(-6px); }
+  40%, 60% { transform: translateX(6px); }
+  100% { transform: translateX(0); }
+}
+
 .submit-btn {
   width: 100%;
   height: 44px;
@@ -561,5 +649,16 @@ async function handleLogin() {
   .form-side {
     padding: 38px 30px;
   }
+}
+</style>
+
+<style>
+/* 登录成功转场用的覆盖圆（动态创建，所以不能用 scoped） */
+.tp-login-circle {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  pointer-events: none;
+  will-change: clip-path;
 }
 </style>

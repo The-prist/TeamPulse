@@ -9,6 +9,8 @@
  */
 
 const STORAGE_KEY = 'tp_theme'
+/** 用户手动选过主题后置 1：此后不再按时间自动切换 */
+const MANUAL_KEY = 'tp_theme_manual'
 
 export const THEMES = { LIGHT: 'light', DARK: 'dark' }
 
@@ -36,7 +38,43 @@ export function setTheme(theme) {
   }
 }
 
-/** 首屏初始化：localStorage 优先，其次跟随系统 */
+/** 本地时间决定主题：6:00–18:00 白天，其余夜间 */
+export function timeBasedTheme(date = new Date()) {
+  const hour = date.getHours()
+  return hour >= 6 && hour < 18 ? THEMES.LIGHT : THEMES.DARK
+}
+
+/** 用户是否手动选过主题 */
+export function hasManualTheme() {
+  try {
+    return localStorage.getItem(MANUAL_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+/** 标记「用户手动选过」，之后不再按时间覆盖 */
+export function markThemeManual() {
+  try {
+    localStorage.setItem(MANUAL_KEY, '1')
+  } catch {
+    /* ignore */
+  }
+}
+
+/** 清除手动标记，恢复按时间自动切换 */
+export function clearThemeManual() {
+  try {
+    localStorage.removeItem(MANUAL_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * 首屏初始化：手动选择优先，其次按本地时间（白天/夜间），
+ * 这样登录进去看到的就是符合当前时间的主题。
+ */
 export function initTheme() {
   let saved = ''
   try {
@@ -44,13 +82,27 @@ export function initTheme() {
   } catch {
     /* ignore */
   }
-  if (saved === THEMES.DARK || saved === THEMES.LIGHT) {
+  if (hasManualTheme() && (saved === THEMES.DARK || saved === THEMES.LIGHT)) {
     applyTheme(saved)
     return saved
   }
-  const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)')?.matches
-  const theme = prefersDark ? THEMES.DARK : THEMES.LIGHT
+  const theme = timeBasedTheme()
   applyTheme(theme)
+  return theme
+}
+
+/** 登录成功后按当前时间重设主题（用户手动选过则保持不动） */
+export function applyTimeBasedTheme() {
+  if (hasManualTheme()) {
+    return currentTheme()
+  }
+  const theme = timeBasedTheme()
+  applyTheme(theme)
+  try {
+    localStorage.setItem(STORAGE_KEY, theme)
+  } catch {
+    /* ignore */
+  }
   return theme
 }
 
