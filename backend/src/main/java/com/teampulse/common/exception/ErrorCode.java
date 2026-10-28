@@ -25,6 +25,8 @@ public enum ErrorCode {
     LOGIN_CAPTCHA_REQUIRED(40101, "连续登录失败，请先完成安全验证", HttpStatus.LOCKED),
     /** 验证码不正确或已过期 */
     CAPTCHA_INVALID(40102, "验证码不正确或已过期", HttpStatus.BAD_REQUEST),
+    /** 同一 IP 失败过多，临时禁止登录 */
+    LOGIN_IP_BLOCKED(40103, "登录尝试过于频繁，请 10 分钟后再试", HttpStatus.TOO_MANY_REQUESTS),
     FORBIDDEN(40300, "没有该操作的权限", HttpStatus.FORBIDDEN),
     NOT_FOUND(40400, "资源不存在", HttpStatus.NOT_FOUND),
     CONFLICT(40900, "资源冲突", HttpStatus.CONFLICT),

@@ -66,6 +66,7 @@
         @open="onCaptchaOpen"
       >
         <p class="captcha-tip">密码已连续输错 {{ failCount }} 次，拖动滑块完成验证后继续</p>
+        <p class="captcha-forgot">忘记了您的密码？请联系您的主管或服务器管理员重置密码。</p>
         <div class="captcha-body">
           <CaptchaSlider ref="captchaRef" @verified="onCaptchaVerified" />
         </div>
@@ -142,11 +143,22 @@
               class="submit-btn"
               :class="{ 'is-failed': loginFailed }"
               :loading="loading"
+              :disabled="isBlocked"
               @click="handleLogin"
             >
               {{ loading ? '登录中…' : '登 录' }}
             </el-button>
           </el-form>
+
+          <div v-if="isBlocked" class="block-tip">
+            <el-icon><InfoFilled /></el-icon>
+            登录尝试过于频繁，已临时限制登录，请 {{ Math.ceil(blockedSeconds / 60) }} 分钟后重试
+          </div>
+
+          <div v-else-if="captchaTriggered" class="forgot-tip">
+            <el-icon><InfoFilled /></el-icon>
+            忘记了您的密码？请联系您的主管或服务器管理员重置密码。
+          </div>
 
           <div class="hint-box">
             <el-icon><InfoFilled /></el-icon>
@@ -238,8 +250,17 @@ const CAPTCHA_THRESHOLD = 5
 const failCount = ref(Number(sessionStorage.getItem(FAIL_KEY) || 0))
 const captchaOpen = ref(false)
 const captchaPassed = ref(false)
-/** 服务端发放的一次性票据 */
+/** 服务端发放的一次性票据（一次性，用掉就要重新验） */
 const captchaTicket = ref('')
+/** 是否已经触发过验证码：一旦触发，之后每次登录都要重新验证 */
+const captchaTriggered = ref(false)
+/** IP 被拉黑时的解封时间戳（0 表示未拉黑） */
+const blockedUntil = ref(0)
+const nowTick = ref(Date.now())
+
+/** 拉黑剩余秒数 */
+const blockedSeconds = computed(() => Math.max(0, Math.ceil((blockedUntil.value - nowTick.value) / 1000)))
+const isBlocked = computed(() => blockedSeconds.value > 0)
 const captchaRef = ref(null)
 
 /**
@@ -247,7 +268,12 @@ const captchaRef = ref(null)
  * ticket 是一次性的（上次已经用掉了），滑块也要换一道新题，
  * 否则第二次会看到上一次「已验证」的状态。
  */
+window.setInterval(() => {
+  nowTick.value = Date.now()
+}, 1000)
+
 function onCaptchaOpen() {
+  captchaTriggered.value = true
   captchaTicket.value = ''
   captchaPassed.value = false
   nextTick(() => captchaRef.value?.reload?.())
@@ -276,13 +302,8 @@ function onCaptchaVerified(ticket) {
   captchaPassed.value = true
   captchaTicket.value = ticket || ''
   captchaOpen.value = false
-  // 通过验证后给 5 次新机会，避免一次手误就要一直验证
-  failCount.value = 0
-  try {
-    sessionStorage.removeItem(FAIL_KEY)
-  } catch {
-    /* ignore */
-  }
+  // 刻意不重置失败计数：票据一次性，验证只对紧接着这一次登录有效，
+  // 再错一次就要重新验（符合「触发之后每错一次验一次」的要求）
   ElMessage.success('验证通过，请重新登录')
 }
 const loading = ref(false)
@@ -325,8 +346,15 @@ async function playLoginTransition(target) {
 async function handleLogin() {
   if (loading.value) return
 
-  // ① 已经失败到阈值：先过验证码
-  if (failCount.value >= CAPTCHA_THRESHOLD && !captchaPassed.value) {
+  // ① IP 被拉黑中：直接提示，不发请求
+  if (isBlocked.value) {
+    flashLoginError()
+    ElMessage.error(`登录尝试过于频繁，请 ${Math.ceil(blockedSeconds.value / 60)} 分钟后再试`)
+    return
+  }
+
+  // ② 已经触发过验证码：每次登录都要先过一道新题
+  if (captchaTriggered.value && !captchaTicket.value) {
     flashLoginError()
     captchaOpen.value = true
     return
@@ -337,7 +365,10 @@ async function handleLogin() {
   if (!valid) {
     flashLoginError()
     bumpFail()
-    if (failCount.value >= CAPTCHA_THRESHOLD) captchaOpen.value = true
+    if (failCount.value >= CAPTCHA_THRESHOLD) {
+      captchaTriggered.value = true
+      captchaOpen.value = true
+    }
     return
   }
 
@@ -354,11 +385,18 @@ async function handleLogin() {
     bumpFail()
     captchaPassed.value = false
     captchaTicket.value = ''
-    // 40101 / HTTP 423：服务端要求先过验证码
-    if (error?.code === 40101 || error?.code === 423) {
+    // 40103 / HTTP 429：IP 被拉黑，设置倒计时
+    if (error?.code === 40103 || error?.code === 429) {
+      const minutes = Number((error?.message || '').match(/(\d+)\s*分钟/)?.[1] || 10)
+      blockedUntil.value = Date.now() + minutes * 60 * 1000
+      ElMessage.error(`登录尝试过于频繁，请 ${minutes} 分钟后再试`)
+    } else if (error?.code === 40101 || error?.code === 423) {
+      // 服务端要求验证码：保持粘性，下次点登录会直接弹新题
+      captchaTriggered.value = true
       captchaOpen.value = true
       ElMessage.warning('连续登录失败，请先完成安全验证')
     } else if (failCount.value >= CAPTCHA_THRESHOLD) {
+      captchaTriggered.value = true
       captchaOpen.value = true
       ElMessage.warning('连续输错 5 次，请完成安全验证')
     }
@@ -654,6 +692,37 @@ async function handleLogin() {
 }
 
 /* 验证码弹窗 */
+.captcha-forgot {
+  margin: -6px 0 14px;
+  font-size: 12px;
+  color: #b45309;
+  text-align: center;
+}
+
+.forgot-tip,
+.block-tip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.forgot-tip {
+  background: #fff7e6;
+  border: 1px solid #f5d9a8;
+  color: #8a5a00;
+}
+
+.block-tip {
+  background: #fdecec;
+  border: 1px solid #f3bcbc;
+  color: #a32b2b;
+}
+
 .captcha-body {
   display: flex;
   justify-content: center;

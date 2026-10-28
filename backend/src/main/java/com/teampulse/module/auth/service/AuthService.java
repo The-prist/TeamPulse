@@ -2,7 +2,7 @@ package com.teampulse.module.auth.service;
 
 import com.teampulse.common.util.ClientIp;
 import com.teampulse.module.captcha.service.CaptchaService;
-import com.teampulse.module.captcha.service.LoginAttemptTracker;
+import com.teampulse.module.captcha.service.LoginGuardService;
 import jakarta.servlet.http.HttpServletRequest;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -40,7 +40,7 @@ public class AuthService {
 
     private final AuthenticationManager authenticationManager;
     private final CaptchaService captchaService;
-    private final LoginAttemptTracker loginAttemptTracker;
+    private final LoginGuardService loginGuard;
     private final JwtTokenProvider tokenProvider;
     private final UserService userService;
     private final UserMapper userMapper;
@@ -50,10 +50,24 @@ public class AuthService {
         String ip = ClientIp.resolve(httpRequest);
         String username = request.getUsername();
 
-        // ① 该账号或该 IP 失败次数达到阈值 → 必须先过验证码（票据一次性）
-        if (loginAttemptTracker.isCaptchaRequired(username, ip)
+        // ① IP 拉黑（失败过多）：冷却期内直接拒绝，连验证码都不给
+        if (loginGuard.isBlocked(ip)) {
+            long left = loginGuard.blockedRemainingSeconds(ip);
+            long minutes = Math.max(1, (left + 59) / 60);
+            log.warn("IP 已拉黑，拒绝登录: ipDigest={} 剩余 {}s", loginGuard.ipDigestPrefix(ip), left);
+            throw BizException.of(ErrorCode.LOGIN_IP_BLOCKED,
+                    "登录尝试过于频繁，请 " + minutes + " 分钟后再试");
+        }
+
+        // ② 账号或 IP 失败达阈值 → 每一次尝试都必须带新的验证码票据（一次性）。
+        //    注意这里不重置计数：验证通过后计数依旧保留，所以「错一次就要验一次」，
+        //    直到真正登录成功才清零。
+        if (loginGuard.isCaptchaRequired(username, ip)
                 && !captchaService.consumeTicket(request.getCaptchaTicket())) {
-            log.warn("登录需要验证码: username={}, ip={}", username, ip);
+            // 没带有效票据就继续撞，同样算一次失败：否则计数卡在阈值上，
+            // IP 永远到不了拉黑线（脚本可以无限重试 40101）
+            loginGuard.recordFailure(username, ip);
+            log.warn("登录需要验证码: username={}, ipDigest={}", username, loginGuard.ipDigestPrefix(ip));
             throw BizException.of(ErrorCode.LOGIN_CAPTCHA_REQUIRED);
         }
 
@@ -65,7 +79,7 @@ public class AuthService {
             String token = tokenProvider.generateToken(principal);
             User user = userMapper.selectById(principal.getUserId());
 
-            loginAttemptTracker.recordSuccess(username, ip);
+            loginGuard.recordSuccess(username, ip);
             log.info("用户登录成功: userId={}, username={}, role={}",
                     principal.getUserId(), principal.getUsername(), principal.getRole());
             String departmentName = null;
@@ -89,8 +103,9 @@ public class AuthService {
                     .build();
         } catch (AuthenticationException ex) {
             // 不区分「用户不存在」与「密码错误」，避免账号枚举
-            loginAttemptTracker.recordFailure(username, ip);
-            log.warn("登录失败: username={}, ip={}, reason={}", username, ip, ex.getMessage());
+            loginGuard.recordFailure(username, ip);
+            log.warn("登录失败: username={}, ipDigest={}, reason={}",
+                    username, loginGuard.ipDigestPrefix(ip), ex.getMessage());
             throw BizException.of(ErrorCode.UNAUTHORIZED, "用户名或密码错误");
         }
     }
